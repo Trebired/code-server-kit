@@ -1,6 +1,6 @@
 {
   "name": "@trebired/code-server-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic code-server launch kit for Node.js apps with installation resolution, launch planning, readiness checks, and process helpers.",
   "license": "MIT",
   "keywords": [

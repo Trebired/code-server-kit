@@ -21,9 +21,17 @@ function writeFile(root: string, relativePath: string, contents: string, mode?: 
   return filePath;
 }
 
+function readFile(root: string, relativePath: string): string {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}
+
+function exists(root: string, relativePath: string): boolean {
+  return fs.existsSync(path.join(root, relativePath));
+}
+
 function createFakeCodeServerPackage(root: string, options: {
   bin?: Record<string, string> | string;
-  entryContents?: string;
+  entryContents?: string | null;
   entryMode?: number;
   entryRelativePath?: string;
   includeSupportRoot?: boolean;
@@ -94,4 +102,4 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export { closeServer, createFakeCodeServerPackage, getFreePort, sleep, tempDir, writeFile };
+export { closeServer, createFakeCodeServerPackage, exists, getFreePort, readFile, sleep, tempDir, writeFile };

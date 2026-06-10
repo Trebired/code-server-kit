@@ -21,6 +21,7 @@ function resolveCodeServerInstallation(options: ResolveCodeServerInstallationOpt
   if (!isFile(entryPoint)) {
     throw new CodeServerBinaryNotFoundError("Resolved code-server entrypoint was not found.", {
       entryPoint,
+      entryRelativePath,
       packageJsonPath,
       packageRoot,
     });
@@ -29,6 +30,7 @@ function resolveCodeServerInstallation(options: ResolveCodeServerInstallationOpt
   return {
     entryKind: detectEntryKind(entryPoint),
     entryPoint,
+    entryRelativePath,
     packageJsonPath,
     packageRoot,
     supportRoot: resolveSupportRoot(packageRoot),
@@ -92,7 +94,7 @@ function resolveEntryRelativePath(packageJson: CodeServerPackageJson): string {
     return packageJson.main;
   }
 
-  throw new CodeServerPackageResolutionError("The installed code-server package does not expose a launch entrypoint.", {});
+  throw new CodeServerBinaryNotFoundError("The installed code-server package does not expose a launch entrypoint.", {});
 }
 
 function detectEntryKind(entryPoint: string): CodeServerEntryKind {

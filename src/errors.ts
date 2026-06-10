@@ -1,8 +1,11 @@
 type CodeServerKitErrorCode =
-  | "binary_not_found"
-  | "package_resolution_failed"
+  | "entrypoint_resolution_failed"
+  | "installation_resolution_failed"
+  | "invalid_configuration"
+  | "launch_planning_failed"
   | "port_allocation_failed"
   | "process_exited_before_ready"
+  | "startup_probe_failed"
   | "startup_timeout";
 
 class CodeServerKitError extends Error {
@@ -17,17 +20,31 @@ class CodeServerKitError extends Error {
   }
 }
 
-class CodeServerBinaryNotFoundError extends CodeServerKitError {
+class CodeServerInstallationResolutionError extends CodeServerKitError {
   constructor(message: string, details: Record<string, unknown> = {}) {
-    super("binary_not_found", message, details);
-    this.name = "CodeServerBinaryNotFoundError";
+    super("installation_resolution_failed", message, details);
+    this.name = "CodeServerInstallationResolutionError";
   }
 }
 
-class CodeServerPackageResolutionError extends CodeServerKitError {
+class CodeServerEntrypointResolutionError extends CodeServerKitError {
   constructor(message: string, details: Record<string, unknown> = {}) {
-    super("package_resolution_failed", message, details);
-    this.name = "CodeServerPackageResolutionError";
+    super("entrypoint_resolution_failed", message, details);
+    this.name = "CodeServerEntrypointResolutionError";
+  }
+}
+
+class CodeServerLaunchPlanningError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("launch_planning_failed", message, details);
+    this.name = "CodeServerLaunchPlanningError";
+  }
+}
+
+class CodeServerInvalidConfigurationError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("invalid_configuration", message, details);
+    this.name = "CodeServerInvalidConfigurationError";
   }
 }
 
@@ -52,16 +69,42 @@ class CodeServerStartupTimeoutError extends CodeServerKitError {
   }
 }
 
+class CodeServerStartupProbeError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("startup_probe_failed", message, details);
+    this.name = "CodeServerStartupProbeError";
+  }
+}
+
+class CodeServerPackageResolutionError extends CodeServerInstallationResolutionError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message, details);
+    this.name = "CodeServerPackageResolutionError";
+  }
+}
+
+class CodeServerBinaryNotFoundError extends CodeServerEntrypointResolutionError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message, details);
+    this.name = "CodeServerBinaryNotFoundError";
+  }
+}
+
 function isCodeServerKitError(value: unknown): value is CodeServerKitError {
   return value instanceof CodeServerKitError;
 }
 
 export {
   CodeServerBinaryNotFoundError,
+  CodeServerEntrypointResolutionError,
+  CodeServerInstallationResolutionError,
+  CodeServerInvalidConfigurationError,
   CodeServerKitError,
+  CodeServerLaunchPlanningError,
   CodeServerPackageResolutionError,
   CodeServerPortAllocationError,
   CodeServerProcessExitedBeforeReadyError,
+  CodeServerStartupProbeError,
   CodeServerStartupTimeoutError,
   isCodeServerKitError,
 };

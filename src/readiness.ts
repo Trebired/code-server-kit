@@ -1,10 +1,17 @@
 import net from "node:net";
 
 import {
+  CodeServerInvalidConfigurationError,
   CodeServerProcessExitedBeforeReadyError,
+  CodeServerStartupProbeError,
   CodeServerStartupTimeoutError,
 } from "./errors.js";
-import type { CodeServerProcessExit, CodeServerReadyOptions, CodeServerReadyResult } from "./types.js";
+import type {
+  CodeServerProcessExit,
+  CodeServerReadyFailure,
+  CodeServerReadyOptions,
+  CodeServerReadyResult,
+} from "./types.js";
 
 const DEFAULT_READY_HOST = "127.0.0.1";
 const DEFAULT_READY_RETRY_INTERVAL_MS = 100;
@@ -33,7 +40,24 @@ async function waitForCodeServerReady(options: CodeServerReadyOptions): Promise<
       throw createExitedBeforeReadyError(host, port, exitResult, options.process);
     }
 
-    const remainingMs = timeoutMs - (Date.now() - startedAt);
+    const elapsedMs = Date.now() - startedAt;
+    const probeFailure = await runFailureProbe(options, {
+      elapsedMs,
+      host,
+      port,
+      process: options.process,
+    });
+
+    if (probeFailure) {
+      throw new CodeServerStartupProbeError(probeFailure.message, {
+        ...(probeFailure.details ?? {}),
+        elapsedMs,
+        host,
+        port,
+      });
+    }
+
+    const remainingMs = timeoutMs - elapsedMs;
     const connected = await canConnect(host, port, Math.min(CONNECT_ATTEMPT_TIMEOUT_MS, remainingMs));
     if (connected) {
       return {
@@ -81,6 +105,35 @@ async function canConnect(host: string, port: number, timeoutMs: number): Promis
   });
 }
 
+async function runFailureProbe(
+  options: CodeServerReadyOptions,
+  context: {
+    elapsedMs: number;
+    host: string;
+    port: number;
+    process?: CodeServerReadyOptions["process"];
+  },
+): Promise<CodeServerReadyFailure | null> {
+  if (!options.failureProbe) return null;
+
+  const result = await options.failureProbe(context);
+  if (!result) return null;
+  if (typeof result === "string") {
+    return {
+      message: result,
+    };
+  }
+  if (result instanceof Error) {
+    return {
+      message: result.message,
+      details: {
+        name: result.name,
+      },
+    };
+  }
+  return result;
+}
+
 function createExitedBeforeReadyError(
   host: string,
   port: number,
@@ -104,7 +157,10 @@ function normalizeReadyHost(value?: string): string {
 
 function normalizeReadyPort(value: number): number {
   if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new TypeError("waitForCodeServerReady requires a TCP port between 1 and 65535.");
+    throw new CodeServerInvalidConfigurationError(
+      "waitForCodeServerReady requires a TCP port between 1 and 65535.",
+      { value },
+    );
   }
 
   return value;
@@ -113,7 +169,9 @@ function normalizeReadyPort(value: number): number {
 function normalizePositiveDuration(value: number | undefined, fallback: number): number {
   if (value == null) return fallback;
   if (!Number.isFinite(value) || value <= 0) {
-    throw new TypeError("Readiness durations must be greater than zero.");
+    throw new CodeServerInvalidConfigurationError("Readiness durations must be greater than zero.", {
+      value,
+    });
   }
   return Math.floor(value);
 }

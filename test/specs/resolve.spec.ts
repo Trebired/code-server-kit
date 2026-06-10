@@ -10,7 +10,7 @@ import {
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
 
 describe("@trebired/code-server-kit resolve", () => {
-  test("resolves the installed package root, entrypoint, and support root from the published bin field", () => {
+  test("resolves the installed package root, entrypoint, support root, and entry relative path", () => {
     const root = tempDir();
     const packageRoot = createFakeCodeServerPackage(root);
 
@@ -21,6 +21,7 @@ describe("@trebired/code-server-kit resolve", () => {
     expect(installation).toMatchObject({
       entryKind: "node_script",
       entryPoint: path.join(packageRoot, "out/node/entry.js"),
+      entryRelativePath: "out/node/entry.js",
       packageJsonPath: path.join(packageRoot, "package.json"),
       packageRoot,
       supportRoot: path.join(packageRoot, "lib/vscode"),
@@ -41,7 +42,7 @@ describe("@trebired/code-server-kit resolve", () => {
     });
 
     expect(installation.entryPoint).toBe(path.join(packageRoot, "dist/code-server-launch.js"));
-    expect(installation.entryKind).toBe("node_script");
+    expect(installation.entryRelativePath).toBe("dist/code-server-launch.js");
   });
 
   test("fails clearly when the package cannot be resolved", () => {
@@ -55,7 +56,7 @@ describe("@trebired/code-server-kit resolve", () => {
   test("fails clearly when the resolved entrypoint does not exist", () => {
     const root = tempDir();
     createFakeCodeServerPackage(root, {
-      entryContents: null as unknown as string,
+      entryContents: null,
     });
 
     expect(() => resolveCodeServerInstallation({

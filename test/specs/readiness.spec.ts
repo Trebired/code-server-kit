@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   CodeServerProcessExitedBeforeReadyError,
+  CodeServerStartupProbeError,
   CodeServerStartupTimeoutError,
   waitForCodeServerReady,
 } from "../../src/index.js";
@@ -62,6 +63,8 @@ describe("@trebired/code-server-kit readiness", () => {
       child: null as any,
       codeServerPackageRoot: "/tmp/fake",
       command: "/tmp/fake/bin/code-server",
+      cwd: "/tmp/fake",
+      env: {},
       exit: (async () => {
         await sleep(60);
         return {
@@ -82,6 +85,7 @@ describe("@trebired/code-server-kit readiness", () => {
       },
       launchMode: "direct" as const,
       pid: 123,
+      plan: null as any,
       port,
       supportRoot: null,
       userDataDir: "/tmp/fake/user-data",
@@ -95,5 +99,28 @@ describe("@trebired/code-server-kit readiness", () => {
       retryIntervalMs: 20,
       timeoutMs: 500,
     })).rejects.toBeInstanceOf(CodeServerProcessExitedBeforeReadyError);
+  });
+
+  test("throws a structured probe error when a caller-provided failure probe fires first", async () => {
+    const port = await getFreePort();
+
+    await expect(waitForCodeServerReady({
+      failureProbe({ elapsedMs }) {
+        if (elapsedMs > 40) {
+          return {
+            details: {
+              phase: "boot",
+            },
+            message: "probe failed",
+          };
+        }
+
+        return null;
+      },
+      host: "127.0.0.1",
+      port,
+      retryIntervalMs: 20,
+      timeoutMs: 400,
+    })).rejects.toBeInstanceOf(CodeServerStartupProbeError);
   });
 });
