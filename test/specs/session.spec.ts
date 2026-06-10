@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   CodeServerInvalidConfigurationError,
+  CodeServerSessionReuseConflictError,
   createCodeServerSessionManager,
   getCodeServerSessionStatus,
   startCodeServerSession,
@@ -246,6 +247,37 @@ describe("@trebired/code-server-kit session", () => {
 
     expect(events.some((event) => event.group === "session" && event.message.includes("starting"))).toBe(true);
     expect(events.some((event) => event.group === "session" && event.message.includes("stopping"))).toBe(true);
+  });
+
+  test("rejects conflicting inflight starts for the same session key", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const manager = createCodeServerSessionManager({
+      resolveFrom: root,
+    });
+    const first = manager.start({
+      sessionKey: "race",
+      stateRoot,
+      workspacePath: "/srv/workspaces/one",
+    });
+
+    await expect(manager.start({
+      sessionKey: "race",
+      stateRoot,
+      workspacePath: "/srv/workspaces/two",
+    })).rejects.toBeInstanceOf(CodeServerSessionReuseConflictError);
+
+    const started = await first;
+    await manager.stop({
+      sessionKey: "race",
+      stateRoot,
+    });
+
+    expect(started.status.ready).toBe(true);
   });
 });
 

@@ -7,31 +7,41 @@ import {
   CodeServerInvalidConfigurationError,
   CodeServerSessionLifecycleError,
   CodeServerSessionReuseConflictError,
-  CodeServerSystemdCollisionError,
   isCodeServerKitError,
 } from "./errors.js";
+import {
+  collectCodeServerStartupDiagnostics,
+  normalizeCodeServerStartupFailure,
+  sanitizeCodeServerDiagnostics,
+} from "./diagnostics.js";
 import { launchCodeServerProcess } from "./launch.js";
 import { logPackageInitialized, resolveLogger } from "./logging.js";
 import { createCodeServerLaunchPlan } from "./plan.js";
-import { syncCodeServerProfile } from "./profile.js";
-import { waitForCodeServerReady } from "./readiness.js";
-import { normalizeCodeServerStartupFailure } from "./spec.js";
+import { ensureCodeServerPrepared } from "./preparation.js";
 import {
-  buildDefaultCodeServerUnitName,
-  createCodeServerSystemdLaunchCommand,
+  persistCodeServerProfileIfChanged,
+  readCodeServerProfileSnapshot,
+  syncCodeServerProfile,
+} from "./profile.js";
+import { waitForCodeServerReady } from "./readiness.js";
+import {
+  extractCodeServerSystemdFailure,
   launchCodeServerWithSystemd,
   readCodeServerSystemdJournal,
   readCodeServerSystemdStatus,
+  restartCodeServerSystemdUnit,
   stopCodeServerSystemdUnit,
+  summarizeCodeServerSystemdJournal,
 } from "./systemd.js";
 import type {
-  CodeServerLaunchPlan,
-  CodeServerLaunchStrategy,
   CodeServerProcessHandle,
   CodeServerProfileLifecycleOptions,
+  CodeServerSanitizedDiagnostics,
+  CodeServerSanitizerOptions,
   CodeServerSessionDiagnostics,
   CodeServerSessionDiagnosticsSnapshot,
   CodeServerSessionFailure,
+  CodeServerSessionHealth,
   CodeServerSessionManager,
   CodeServerSessionManagerOptions,
   CodeServerSessionRecord,
@@ -42,18 +52,19 @@ import type {
   CodeServerSessionStatus,
   CodeServerSessionStopResult,
   CodeServerSystemdScope,
-  CodeServerSystemdStatus,
+  CodeServerWatchdogMode,
 } from "./types.js";
 
-const DEFAULT_LAUNCH_STRATEGY: CodeServerLaunchStrategy = "direct";
+const DEFAULT_LAUNCH_STRATEGY = "direct";
 const DEFAULT_READY_RETRY_INTERVAL_MS = 100;
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
-const DEFAULT_TAIL_LENGTH = 8_192;
+const handles = new Map<string, CodeServerProcessHandle>();
+const inflightStarts = new Map<string, {
+  promise: Promise<CodeServerSessionStartResult>;
+  specHash: string;
+}>();
 
 function createCodeServerSessionManager(options: CodeServerSessionManagerOptions = {}): CodeServerSessionManager {
-  const handles = new Map<string, CodeServerProcessHandle>();
-  const log = resolveLogger(options.logger, options.loggerAdapter);
-
   logPackageInitialized({
     adapter: options.loggerAdapter,
     logger: options.logger,
@@ -62,14 +73,13 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
 
   return {
     async getStatus(input) {
-      const request = {
+      return await getCodeServerSessionStatusInternal({
         logger: input.logger ?? options.logger,
         loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        sanitizer: input.sanitizer,
         sessionKey: input.sessionKey,
         stateRoot: input.stateRoot,
-      };
-
-      return await getCodeServerSessionStatusInternal(request, handles);
+      });
     },
     async readDiagnostics(input) {
       return await readCodeServerSessionDiagnostics({
@@ -82,14 +92,11 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
         logger: input.logger,
         loggerAdapter: input.loggerAdapter,
         profile: input.profile,
+        sanitizer: input.sanitizer,
         sessionKey: input.sessionKey,
         signal: "SIGTERM",
         stateRoot: input.stateRoot,
-      }) ?? {
-        diagnostics: null,
-        status: createStoppedPlaceholderStatus(input),
-        stopped: false,
-      };
+      }) ?? createEmptyStopResult(input.sessionKey);
       const start = await this.start(input);
       return {
         start,
@@ -97,26 +104,20 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
       } satisfies CodeServerSessionRestartResult;
     },
     async start(input) {
-      return await startCodeServerSessionInternal(
-        {
-          ...input,
-          installation: input.installation ?? options.installation,
-          logger: input.logger ?? options.logger,
-          loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
-          resolveFrom: input.resolveFrom ?? options.resolveFrom,
-        },
-        handles,
-      );
+      return await startCodeServerSessionInternal({
+        ...input,
+        installation: input.installation ?? options.installation,
+        logger: input.logger ?? options.logger,
+        loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        resolveFrom: input.resolveFrom ?? options.resolveFrom,
+      });
     },
     async stop(input) {
-      return await stopCodeServerSessionInternal(
-        {
-          ...input,
-          logger: input.logger ?? options.logger,
-          loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
-        },
-        handles,
-      );
+      return await stopCodeServerSessionInternal({
+        ...input,
+        logger: input.logger ?? options.logger,
+        loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+      });
     },
   };
 }
@@ -132,226 +133,345 @@ async function startCodeServerSession(options: CodeServerSessionRequest): Promis
   return await manager.start(options);
 }
 
-async function stopCodeServerSession(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sessionKey" | "stateRoot"> & {
+async function stopCodeServerSession(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
   signal?: NodeJS.Signals | number;
 }): Promise<CodeServerSessionStopResult | null> {
-  const manager = createCodeServerSessionManager({
+  return await createCodeServerSessionManager({
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
-  });
-
-  return await manager.stop(options);
+  }).stop(options);
 }
 
 async function restartCodeServerSession(options: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult> {
-  const manager = createCodeServerSessionManager({
+  return await createCodeServerSessionManager({
     installation: options.installation,
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
     resolveFrom: options.resolveFrom,
-  });
-
-  return await manager.restart(options);
+  }).restart(options);
 }
 
-async function getCodeServerSessionStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null> {
-  const manager = createCodeServerSessionManager({
+async function getCodeServerSessionStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null> {
+  return await createCodeServerSessionManager({
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
-  });
-
-  return await manager.getStatus(options);
+  }).getStatus(options);
 }
 
 async function readCodeServerSessionDiagnostics(options: Pick<CodeServerSessionRequest, "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null> {
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
-  const diagnostics = await readJsonFile<CodeServerSessionDiagnostics>(paths.diagnosticsPath);
-  return diagnostics ?? null;
+  return await readJsonFile<CodeServerSessionDiagnostics>(paths.diagnosticsPath);
 }
 
-async function startCodeServerSessionInternal(
-  options: CodeServerSessionRequest,
-  handles: Map<string, CodeServerProcessHandle>,
-): Promise<CodeServerSessionStartResult> {
-  const log = resolveLogger(options.logger, options.loggerAdapter);
-  const basePaths = getSessionPaths(options.stateRoot, options.sessionKey);
-  const existing = await readJsonFile<CodeServerSessionRecord>(basePaths.recordPath);
-  const context = await prepareSessionContext(options, existing);
+async function startCodeServerSessionInternal(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
+  const sessionKey = normalizeSessionKey(options.sessionKey);
+  const stateRoot = path.resolve(options.stateRoot);
+  const requestedSpecHash = hashNormalizedSpec({
+    launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
+    env: options.env ?? {},
+    host: options.host ?? null,
+    port: options.port ?? null,
+    trustedOrigins: options.trustedOrigins ?? [],
+    workspacePath: options.workspacePath ?? null,
+    profile: normalizeProfileConfig(options.profile),
+    systemd: options.systemd ?? null,
+  });
+  const inflightKey = `${stateRoot}:${sessionKey}`;
+  const running = inflightStarts.get(inflightKey);
+  if (running) {
+    if (running.specHash === requestedSpecHash) {
+      return await running.promise;
+    }
+    throw new CodeServerSessionReuseConflictError("A code-server session start is already in flight for this session key with a different effective spec.", {
+      sessionKey,
+      stateRoot,
+    });
+  }
 
-  log.info("session", "starting code-server session", {
-    launchStrategy: context.launchStrategy,
-    sessionKey: options.sessionKey,
-    stateRoot: context.stateRoot,
+  const promise = (async () => {
+    const paths = getSessionPaths(stateRoot, sessionKey);
+    const existing = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
+    const existingHost = existing ? extractHost(existing.bindAddr) : undefined;
+    const launchPlan = await createCodeServerLaunchPlan({
+      ...options,
+      host: options.bindAddr ? undefined : (options.host ?? existingHost),
+      port: options.bindAddr ? undefined : (options.port ?? existing?.port),
+      dataRoot: options.dataRoot ?? path.join(paths.sessionDir, "runtime"),
+    });
+    const specHash = hashNormalizedSpec({
+      launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
+      plan: {
+        args: launchPlan.args,
+        bindAddr: launchPlan.bindAddr,
+        command: launchPlan.command,
+        trustedOrigins: launchPlan.trustedOrigins,
+        workspacePath: launchPlan.workspacePath,
+      },
+      profile: normalizeProfileConfig(options.profile),
+      systemd: options.systemd ?? null,
+    });
+
+    return await startCodeServerSessionInner({
+      existing,
+      launchPlan,
+      options,
+      paths,
+      sessionKey,
+      specHash,
+      stateRoot,
+    });
+  })();
+  inflightStarts.set(inflightKey, {
+    promise,
+    specHash: requestedSpecHash,
   });
 
-  await mkdirp(context.paths.sessionDir);
-  await maybeRestoreProfile(options.profile, context.plan.userDataDir);
+  try {
+    return await promise;
+  } finally {
+    inflightStarts.delete(inflightKey);
+  }
+}
+
+async function startCodeServerSessionInner(context: {
+  existing: CodeServerSessionRecord | null;
+  launchPlan: Awaited<ReturnType<typeof createCodeServerLaunchPlan>>;
+  options: CodeServerSessionRequest;
+  paths: ReturnType<typeof getSessionPaths>;
+  sessionKey: string;
+  specHash: string;
+  stateRoot: string;
+}): Promise<CodeServerSessionStartResult> {
+  const { existing, launchPlan, options, paths, sessionKey, specHash, stateRoot } = context;
+  const log = resolveLogger(options.logger, options.loggerAdapter);
+  const launchStrategy = options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY;
+  const preparation = options.preparation?.mode === "skip"
+    ? launchPlan.preparationStatus
+    : (await ensureCodeServerPrepared({
+      logger: options.logger,
+      loggerAdapter: options.loggerAdapter,
+      resolveFrom: options.resolveFrom,
+      strictWatchdog: options.preparation?.strictWatchdog,
+    })).status;
+  const watchdogMode = preparation.watchdogMode;
+
+  await mkdirp(paths.sessionDir);
+
+  log.info("session", "starting code-server session", {
+    launchStrategy,
+    sessionKey,
+    stateRoot,
+  });
 
   if (existing) {
-    const liveStatus = await probeSessionRecord(existing, handles, context.paths);
-    if (existing.specHash === context.specHash && liveStatus.ready) {
+    const status = await probeSessionRecord(existing, options.sanitizer);
+    if (existing.specHash === specHash && status.ready) {
       const reused = {
-        ...liveStatus,
+        ...status,
         state: "reusing_existing" as const,
       };
       await writeSessionRecord({
         ...existing,
-        diagnostics: existing.diagnostics,
+        health: "ready",
+        preparation,
         state: "reusing_existing",
         updatedAt: nowIso(),
-      }, context.paths.recordPath);
-      log.info("session", "reusing existing code-server session", {
-        port: reused.port,
-        sessionKey: reused.sessionKey,
-      });
+      }, paths.recordPath);
       return {
         created: false,
         diagnostics: reused.diagnostics,
-        handle: handles.get(options.sessionKey) ?? null,
-        launchPlan: context.plan,
-        launchStrategy: context.launchStrategy,
+        handle: handles.get(sessionKey) ?? null,
+        launchPlan,
+        launchStrategy,
         reused: true,
         status: reused,
       };
     }
 
-    if (existing.specHash !== context.specHash && isLiveState(liveStatus.state)) {
-      await stopExistingRuntime(existing, options.profile, handles, options.logger, options.loggerAdapter);
-      await writeSessionRecord({
-        ...existing,
-        state: "stale",
-        stoppedAt: nowIso(),
-        updatedAt: nowIso(),
-      }, context.paths.recordPath);
-    } else if (!liveStatus.ready && isLiveState(existing.state)) {
-      await writeSessionRecord({
-        ...existing,
-        state: "stale",
-        stoppedAt: nowIso(),
-        updatedAt: nowIso(),
-      }, context.paths.recordPath);
+    if (isLiveOrStartingState(status.state)) {
+      await stopExistingRuntime(existing, options.profile, undefined, options.logger, options.loggerAdapter);
     }
   }
 
-  const baseRecord = createBaseRecord(context);
+  await maybeRestoreProfile(options.profile, launchPlan.userDataDir);
+
+  const baseRecord = createBaseRecord({
+    lastStartSummary: null,
+    launchPlan,
+    launchStrategy,
+    preparation,
+    sessionKey,
+    specHash,
+    watchdogMode,
+  });
   await writeSessionRecord({
     ...baseRecord,
     state: "launching",
-  }, context.paths.recordPath);
+    updatedAt: nowIso(),
+  }, paths.recordPath);
 
   try {
-    const launched = context.launchStrategy === "direct"
-      ? await startDirectSession(context, handles)
-      : await startSystemdSession(context, existing);
+    let handle: CodeServerProcessHandle | null = null;
+    let journalTail = "";
+
+    if (launchStrategy === "direct") {
+      handle = await launchCodeServerProcess({
+        plan: launchPlan,
+      });
+      handles.set(sessionKey, handle);
+    } else {
+      if (!options.systemd?.scope) {
+        throw new CodeServerInvalidConfigurationError(
+          "systemd session launches require an explicit scope of 'user' or 'system'.",
+          {
+            sessionKey,
+          },
+        );
+      }
+
+      await launchCodeServerWithSystemd({
+        extraProperties: options.systemd.extraProperties,
+        logger: options.logger,
+        loggerAdapter: options.loggerAdapter,
+        plan: launchPlan,
+        scope: options.systemd.scope,
+        sessionKey,
+        unitName: options.systemd.unitName,
+      });
+    }
 
     const ready = await waitForCodeServerReady({
-      failureProbe: launched.failureProbe,
-      host: context.plan.host,
-      port: context.plan.port,
-      process: launched.handle ?? undefined,
+      failureProbe: options.failureProbe,
+      host: launchPlan.host,
+      port: launchPlan.port,
+      process: handle ?? undefined,
       retryIntervalMs: options.readinessRetryIntervalMs ?? DEFAULT_READY_RETRY_INTERVAL_MS,
       timeoutMs: options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
     });
 
-    const diagnostics = await buildDiagnosticsSnapshot(context, launched.handle, ready.elapsedMs, launched.systemdStatus);
+    if (launchStrategy === "systemd" && options.systemd?.scope) {
+      journalTail = await summarizeCodeServerSystemdJournal({
+        lines: 50,
+        scope: options.systemd.scope,
+        unitName: options.systemd.unitName ?? `trebired-code-server-kit-${sessionKey}.service`,
+      });
+    }
+
+    const normalizedFailure = collectCodeServerStartupDiagnostics({
+      journal: journalTail,
+      launchStrategy,
+      preparationStatus: preparation,
+      process: handle,
+      sanitizer: options.sanitizer,
+      watchdogMode,
+    });
+    const diagnostics = createDiagnosticsSnapshot({
+      handle,
+      journalTail,
+      normalizedFailure,
+      readyElapsedMs: ready.elapsedMs,
+    });
+
     const record = {
       ...baseRecord,
       diagnostics,
-      pid: launched.handle?.pid ?? launched.systemdStatus?.execMainPid ?? null,
+      health: "ready" as const,
+      lastStartSummary: normalizedFailure.summary,
+      pid: handle?.pid ?? null,
+      preparation,
       readyAt: nowIso(),
+      sanitizedDiagnostics: normalizedFailure.sanitized ?? null,
       startedAt: nowIso(),
       state: "ready" as const,
-      unitName: launched.unitName,
+      systemdScope: options.systemd?.scope ?? null,
+      unitName: options.systemd?.unitName ?? null,
       updatedAt: nowIso(),
     };
 
-    await writeSessionRecord(record, context.paths.recordPath);
-    await writeDiagnosticsFile(diagnostics, context.paths);
+    await writeSessionRecord(record, paths.recordPath);
+    await writeDiagnosticsFile(record, paths);
 
-    const status = await recordToStatus(record, context.paths, handles);
     return {
       created: true,
-      diagnostics: status.diagnostics,
-      handle: launched.handle,
-      launchPlan: context.plan,
-      launchStrategy: context.launchStrategy,
+      diagnostics: await readCodeServerSessionDiagnostics({
+        sessionKey,
+        stateRoot,
+      }),
+      handle,
+      launchPlan,
+      launchStrategy,
       reused: false,
-      status,
+      status: await probeSessionRecord(record, options.sanitizer),
     };
   } catch (error) {
-    const normalized = normalizeCodeServerStartupFailure(error);
+    const normalized = normalizeCodeServerStartupFailure(error, {
+      launchStrategy,
+      preparationStatus: preparation,
+      sanitizer: options.sanitizer,
+      watchdogMode,
+    });
+    const handle = handles.get(sessionKey) ?? null;
     const failure = {
-      code: normalized.code ?? "session_start_failed",
+      code: normalized.code,
       details: normalized.details,
-      message: normalized.message,
+      message: normalized.summary,
       name: normalized.name,
     } satisfies CodeServerSessionFailure;
 
-    if (context.launchStrategy === "systemd" && context.systemdScope && context.unitName) {
-      try {
-        await stopCodeServerSystemdUnit({
-          logger: options.logger,
-          loggerAdapter: options.loggerAdapter,
-          resetFailed: true,
-          scope: context.systemdScope,
-          unitName: context.unitName,
-        });
-      } catch {
-      }
-    }
-
-    const handle = handles.get(options.sessionKey);
     if (handle) {
       try {
         handle.kill("SIGTERM");
       } catch {
       }
-      handles.delete(options.sessionKey);
+      handles.delete(sessionKey);
     }
 
-    const diagnostics = await buildFailureDiagnostics(context, handles.get(options.sessionKey) ?? null);
     const record = {
       ...baseRecord,
-      diagnostics,
+      diagnostics: createDiagnosticsSnapshot({
+        handle,
+        journalTail: launchStrategy === "systemd" && options.systemd?.scope && options.systemd.unitName
+          ? await safeSystemdSummary(options.systemd.scope, options.systemd.unitName)
+          : "",
+        normalizedFailure: normalized,
+        readyElapsedMs: null,
+      }),
       failure,
-      pid: diagnostics.pid ?? null,
+      health: "failed" as const,
+      lastStartSummary: normalized.summary,
+      pid: handle?.pid ?? null,
+      preparation,
+      sanitizedDiagnostics: normalized.sanitized ?? null,
       startedAt: nowIso(),
       state: "failed" as const,
-      unitName: context.unitName,
+      systemdScope: options.systemd?.scope ?? null,
+      unitName: options.systemd?.unitName ?? null,
       updatedAt: nowIso(),
     };
 
-    await writeSessionRecord(record, context.paths.recordPath);
-    await writeDiagnosticsFile(diagnostics, context.paths);
-
-    log.fail("session", "code-server session failed to start", {
-      code: failure.code,
-      message: failure.message,
-      sessionKey: options.sessionKey,
-    });
+    await writeSessionRecord(record, paths.recordPath);
+    await writeDiagnosticsFile(record, paths);
 
     if (isCodeServerKitError(error)) {
       throw error;
     }
 
     throw new CodeServerSessionLifecycleError("Could not start the code-server session.", {
-      cause: normalized.message,
-      sessionKey: options.sessionKey,
-      stateRoot: options.stateRoot,
+      cause: normalized.summary,
+      sessionKey,
+      stateRoot,
     });
   }
 }
 
 async function stopCodeServerSessionInternal(
-  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sessionKey" | "stateRoot"> & {
+  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
     signal?: NodeJS.Signals | number;
   },
-  handles: Map<string, CodeServerProcessHandle>,
 ): Promise<CodeServerSessionStopResult | null> {
   const log = resolveLogger(options.logger, options.loggerAdapter);
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
   const record = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
-
   if (!record) return null;
 
   log.info("session", "stopping code-server session", {
@@ -359,11 +479,10 @@ async function stopCodeServerSessionInternal(
     sessionKey: options.sessionKey,
   });
 
-  await stopExistingRuntime(record, options.profile, handles, options.logger, options.loggerAdapter, options.signal);
-  const diagnostics = await buildStopDiagnostics(record, handles, paths);
+  await stopExistingRuntime(record, options.profile, options.signal, options.logger, options.loggerAdapter);
   const stoppedRecord = {
     ...record,
-    diagnostics,
+    health: "stopped" as const,
     pid: null,
     state: "stopped" as const,
     stoppedAt: nowIso(),
@@ -371,280 +490,112 @@ async function stopCodeServerSessionInternal(
   };
 
   await writeSessionRecord(stoppedRecord, paths.recordPath);
-  await writeDiagnosticsFile(diagnostics, paths);
+  await writeDiagnosticsFile(stoppedRecord, paths);
 
-  const status = await recordToStatus(stoppedRecord, paths, handles);
   return {
-    diagnostics: status.diagnostics,
+    diagnostics: await readCodeServerSessionDiagnostics({
+      sessionKey: options.sessionKey,
+      stateRoot: options.stateRoot,
+    }),
     signal: options.signal,
-    status,
+    status: await probeSessionRecord(stoppedRecord, options.sanitizer),
     stopped: true,
   };
 }
 
 async function getCodeServerSessionStatusInternal(
-  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sessionKey" | "stateRoot">,
-  handles: Map<string, CodeServerProcessHandle>,
+  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">,
 ): Promise<CodeServerSessionStatus | null> {
-  const log = resolveLogger(options.logger, options.loggerAdapter);
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
   const record = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
-
   if (!record) return null;
-
-  const status = await probeSessionRecord(record, handles, paths);
-  log.info("session", "read code-server session status", {
-    ready: status.ready,
-    sessionKey: options.sessionKey,
-    state: status.state,
-  });
-
-  return status;
-}
-
-async function prepareSessionContext(
-  options: CodeServerSessionRequest,
-  existing?: CodeServerSessionRecord | null,
-) {
-  const sessionKey = normalizeSessionKey(options.sessionKey);
-  const stateRoot = path.resolve(options.stateRoot);
-  const paths = getSessionPaths(stateRoot, sessionKey);
-  const launchStrategy = options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY;
-  const dataRoot = options.dataRoot
-    ? path.resolve(options.dataRoot)
-    : path.join(paths.sessionDir, "runtime");
-  const existingHost = existing?.bindAddr ? extractHost(existing.bindAddr) : undefined;
-  const plan = await createCodeServerLaunchPlan({
-    ...options,
-    dataRoot,
-    host: options.bindAddr ? undefined : (options.host ?? existingHost),
-    port: options.bindAddr ? undefined : (options.port ?? existing?.port),
-  });
-  const systemdScope = launchStrategy === "systemd"
-    ? options.systemd?.scope ?? null
-    : null;
-
-  if (launchStrategy === "systemd" && !systemdScope) {
-    throw new CodeServerInvalidConfigurationError(
-      "systemd session launches require an explicit scope of 'user' or 'system'.",
-      {
-        launchStrategy,
-        sessionKey,
-      },
-    );
-  }
-
-  const unitName = launchStrategy === "systemd"
-    ? options.systemd?.unitName ?? buildDefaultCodeServerUnitName(sessionKey)
-    : null;
-  const specHash = hashNormalizedSpec({
-    env: sortEnv({
-      ...plan.env,
-    }),
-    launchStrategy,
-    plan: {
-      args: plan.args,
-      bindAddr: plan.bindAddr,
-      command: plan.command,
-      cwd: plan.cwd,
-      extensionsDir: plan.extensionsDir,
-      trustedOrigins: plan.trustedOrigins,
-      userDataDir: plan.userDataDir,
-      workspacePath: plan.workspacePath,
-    },
-    profile: normalizeProfileConfig(options.profile),
-    systemd: launchStrategy === "systemd"
-      ? {
-        extraProperties: options.systemd?.extraProperties ?? [],
-        scope: systemdScope,
-        unitName,
-      }
-      : null,
-  });
-
-  return {
-    launchStrategy,
-    paths,
-    plan,
-    sessionKey,
-    specHash,
-    stateRoot,
-    systemdScope,
-    unitName,
-  };
-}
-
-async function startDirectSession(
-  context: Awaited<ReturnType<typeof prepareSessionContext>>,
-  handles: Map<string, CodeServerProcessHandle>,
-): Promise<{
-  failureProbe: CodeServerSessionRequest["failureProbe"];
-  handle: CodeServerProcessHandle;
-  systemdStatus: null;
-  unitName: null;
-}> {
-  const stdoutTail = createTailBuffer();
-  const stderrTail = createTailBuffer();
-  const handle = await launchCodeServerProcess({
-    plan: context.plan,
-    stderr(text) {
-      stderrTail.push(text);
-    },
-    stdout(text) {
-      stdoutTail.push(text);
-    },
-  });
-
-  handles.set(context.sessionKey, handle);
-
-  return {
-    failureProbe: null,
-    handle: decorateHandleWithTails(handle, stdoutTail, stderrTail),
-    systemdStatus: null,
-    unitName: null,
-  };
-}
-
-async function startSystemdSession(
-  context: Awaited<ReturnType<typeof prepareSessionContext>>,
-  existing: CodeServerSessionRecord | null,
-): Promise<{
-  failureProbe: NonNullable<CodeServerSessionRequest["failureProbe"]>;
-  handle: null;
-  systemdStatus: CodeServerSystemdStatus | null;
-  unitName: string;
-}> {
-  const scope = context.systemdScope as CodeServerSystemdScope;
-  const unitName = context.unitName as string;
-  const statusBefore = await safeReadSystemdStatus(scope, unitName);
-
-  if (statusBefore && !statusBefore.notFound) {
-    if (existing?.specHash === context.specHash && statusBefore.reusable) {
-      return {
-        failureProbe: createSystemdFailureProbe(scope, unitName),
-        handle: null,
-        systemdStatus: statusBefore,
-        unitName,
-      };
-    }
-
-    await stopCodeServerSystemdUnit({
-      resetFailed: true,
-      scope,
-      unitName,
-    });
-  }
-
-  await launchCodeServerWithSystemd({
-    extraProperties: context.plan.workspacePath ? [] : [],
-    plan: context.plan,
-    scope,
-    sessionKey: context.sessionKey,
-    unitName,
-  });
-
-  const statusAfter = await safeReadSystemdStatus(scope, unitName);
-  if (!statusAfter || statusAfter.notFound) {
-    throw new CodeServerSystemdCollisionError("systemd reported that the launched code-server unit does not exist.", {
-      scope,
-      unitName,
-    });
-  }
-
-  return {
-    failureProbe: createSystemdFailureProbe(scope, unitName),
-    handle: null,
-    systemdStatus: statusAfter,
-    unitName,
-  };
+  return await probeSessionRecord(record, options.sanitizer);
 }
 
 async function probeSessionRecord(
   record: CodeServerSessionRecord,
-  handles: Map<string, CodeServerProcessHandle>,
-  paths: ReturnType<typeof getSessionPaths>,
+  sanitizer?: CodeServerSanitizerOptions,
 ): Promise<CodeServerSessionStatus> {
   const diagnostics = await readCodeServerSessionDiagnostics({
     sessionKey: record.sessionKey,
-    stateRoot: path.resolve(paths.stateRoot),
+    stateRoot: path.dirname(path.dirname(path.dirname(record.userDataDir))),
   });
-
-  if (record.launchStrategy === "systemd" && record.systemdScope && record.unitName) {
-    const status = await safeReadSystemdStatus(record.systemdScope, record.unitName);
-    const ready = !!status?.reusable && await canConnect(record.bindAddr, record.port);
-
-    return {
-      bindAddr: record.bindAddr,
-      diagnostics,
-      extensionsDir: record.extensionsDir,
-      failure: record.failure ?? null,
-      launchStrategy: record.launchStrategy,
-      pid: status?.execMainPid ?? null,
-      port: record.port,
-      ready,
-      readyAt: ready ? record.readyAt : null,
-      sessionKey: record.sessionKey,
-      specHash: record.specHash,
-      startedAt: record.startedAt,
-      state: ready ? (record.state === "reusing_existing" ? "reusing_existing" : "ready") : deriveDeadState(record, status),
-      stoppedAt: record.stoppedAt,
-      systemdScope: record.systemdScope,
-      unitName: record.unitName,
-      updatedAt: record.updatedAt,
-      userDataDir: record.userDataDir,
-      workspacePath: record.workspacePath,
-    };
-  }
-
-  const live = record.pid ? isPidAlive(record.pid) : false;
-  const ready = live && await canConnect(record.bindAddr, record.port);
-  const handle = handles.get(record.sessionKey);
+  const ready = record.launchStrategy === "systemd"
+    ? await probeSystemdReady(record)
+    : await probeDirectReady(record);
+  const sanitizedDiagnostics = sanitizer && diagnostics?.normalizedFailure
+    ? sanitizeCodeServerDiagnostics(diagnostics.normalizedFailure, sanitizer)
+    : record.sanitizedDiagnostics ?? null;
 
   return {
     bindAddr: record.bindAddr,
     diagnostics,
     extensionsDir: record.extensionsDir,
     failure: record.failure ?? null,
+    health: ready ? "ready" : record.health,
+    lastStartSummary: record.lastStartSummary ?? null,
     launchStrategy: record.launchStrategy,
-    pid: handle?.pid ?? record.pid,
+    pid: record.launchStrategy === "direct"
+      ? handles.get(record.sessionKey)?.pid ?? record.pid
+      : record.pid,
     port: record.port,
+    preparation: record.preparation ?? null,
     ready,
     readyAt: ready ? record.readyAt : null,
+    sanitizedDiagnostics,
     sessionKey: record.sessionKey,
     specHash: record.specHash,
     startedAt: record.startedAt,
-    state: ready ? (record.state === "reusing_existing" ? "reusing_existing" : "ready") : deriveDirectDeadState(record, live),
+    state: ready ? record.state : deriveDeadState(record),
     stoppedAt: record.stoppedAt,
-    systemdScope: null,
-    unitName: null,
+    systemdScope: record.systemdScope,
+    unitName: record.unitName,
     updatedAt: record.updatedAt,
     userDataDir: record.userDataDir,
+    watchdogMode: record.watchdogMode,
     workspacePath: record.workspacePath,
   };
+}
+
+async function probeSystemdReady(record: CodeServerSessionRecord): Promise<boolean> {
+  if (!record.systemdScope || !record.unitName) return false;
+  try {
+    const status = await readCodeServerSystemdStatus({
+      scope: record.systemdScope,
+      unitName: record.unitName,
+    });
+    return status.reusable && await canConnect(record.bindAddr, record.port);
+  } catch {
+    return false;
+  }
+}
+
+async function probeDirectReady(record: CodeServerSessionRecord): Promise<boolean> {
+  const pid = handles.get(record.sessionKey)?.pid ?? record.pid;
+  if (!pid || !isPidAlive(pid)) return false;
+  return await canConnect(record.bindAddr, record.port);
 }
 
 async function stopExistingRuntime(
   record: CodeServerSessionRecord,
   profile: CodeServerProfileLifecycleOptions | undefined,
-  handles: Map<string, CodeServerProcessHandle>,
+  signal: NodeJS.Signals | number | undefined,
   logger?: CodeServerSessionRequest["logger"],
   loggerAdapter?: CodeServerSessionRequest["loggerAdapter"],
-  signal?: NodeJS.Signals | number,
 ): Promise<void> {
   if (record.launchStrategy === "systemd" && record.systemdScope && record.unitName) {
-    await stopCodeServerSystemdUnit({
+    await restartCodeServerSystemdUnit({
       logger,
       loggerAdapter,
-      resetFailed: true,
       scope: record.systemdScope,
       unitName: record.unitName,
     });
-  } else if (record.pid) {
+  } else {
     const handle = handles.get(record.sessionKey);
     if (handle) {
       handle.kill(signal ?? "SIGTERM");
       handles.delete(record.sessionKey);
-    } else if (isPidAlive(record.pid)) {
+    } else if (record.pid && isPidAlive(record.pid)) {
       process.kill(record.pid, signal ?? "SIGTERM");
     }
   }
@@ -652,166 +603,153 @@ async function stopExistingRuntime(
   await maybePersistProfile(profile, record.userDataDir);
 }
 
-function createBaseRecord(context: Awaited<ReturnType<typeof prepareSessionContext>>): CodeServerSessionRecord {
+async function maybeRestoreProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
+  if (!profile?.restoreFrom) return;
+
+  const restorePolicy = profile.restorePolicy ?? "if-missing-or-empty";
+  if (restorePolicy === "if-missing-or-empty") {
+    const snapshot = await readCodeServerProfileSnapshot({
+      items: profile.items,
+      pathMap: profile.pathMap,
+      rootDir: userDataDir,
+      snapshotExtensions: profile.snapshotExtensions,
+    });
+    if (snapshot.entries.some((entry) => entry.present)) {
+      return;
+    }
+  }
+
+  await syncCodeServerProfile({
+    items: profile.items,
+    pathMap: profile.pathMap,
+    skipMissing: profile.skipMissing,
+    skipUnreadable: profile.skipUnreadable,
+    sourceDir: profile.restoreFrom,
+    targetDir: userDataDir,
+  });
+}
+
+async function maybePersistProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
+  if (!profile?.persistTo) return;
+
+  const persistPolicy = profile.persistPolicy ?? "if-changed";
+  if (persistPolicy === "always") {
+    await syncCodeServerProfile({
+      items: profile.items,
+      pathMap: profile.pathMap,
+      skipMissing: profile.skipMissing,
+      skipUnreadable: profile.skipUnreadable,
+      sourceDir: userDataDir,
+      targetDir: profile.persistTo,
+    });
+    return;
+  }
+
+  await persistCodeServerProfileIfChanged({
+    items: profile.items,
+    pathMap: profile.pathMap,
+    signatureMode: profile.signatureMode,
+    skipMissing: profile.skipMissing,
+    skipUnreadable: profile.skipUnreadable,
+    snapshotExtensions: profile.snapshotExtensions,
+    sourceDir: userDataDir,
+    targetDir: profile.persistTo,
+  });
+}
+
+function createBaseRecord(options: {
+  lastStartSummary: string | null;
+  launchPlan: Awaited<ReturnType<typeof createCodeServerLaunchPlan>>;
+  launchStrategy: string;
+  preparation: Awaited<ReturnType<typeof ensureCodeServerPrepared>>["status"];
+  sessionKey: string;
+  specHash: string;
+  watchdogMode: CodeServerWatchdogMode;
+}): CodeServerSessionRecord {
   return {
-    bindAddr: context.plan.bindAddr,
+    bindAddr: options.launchPlan.bindAddr,
     diagnostics: null,
-    extensionsDir: context.plan.extensionsDir,
-    launchStrategy: context.launchStrategy,
+    extensionsDir: options.launchPlan.extensionsDir,
+    health: "starting",
+    lastStartSummary: options.lastStartSummary,
+    launchStrategy: options.launchStrategy as CodeServerSessionRecord["launchStrategy"],
     pid: null,
-    port: context.plan.port,
+    port: options.launchPlan.port,
+    preparation: options.preparation,
     readyAt: null,
-    sessionKey: context.sessionKey,
-    specHash: context.specHash,
+    sanitizedDiagnostics: null,
+    sessionKey: options.sessionKey,
+    specHash: options.specHash,
     startedAt: null,
     state: "planned",
     stoppedAt: null,
-    systemdScope: context.systemdScope,
-    trustedOrigins: [...context.plan.trustedOrigins],
-    unitName: context.unitName,
+    systemdScope: null,
+    trustedOrigins: [...options.launchPlan.trustedOrigins],
+    unitName: null,
     updatedAt: nowIso(),
-    userDataDir: context.plan.userDataDir,
-    workspacePath: context.plan.workspacePath,
+    userDataDir: options.launchPlan.userDataDir,
+    watchdogMode: options.watchdogMode,
+    workspacePath: options.launchPlan.workspacePath,
   };
 }
 
-async function buildDiagnosticsSnapshot(
-  context: Awaited<ReturnType<typeof prepareSessionContext>>,
-  handle: CodeServerProcessHandle | null,
-  readyElapsedMs: number,
-  systemdStatus: CodeServerSystemdStatus | null,
-): Promise<CodeServerSessionDiagnosticsSnapshot> {
-  const summary: Record<string, unknown> = {
-    bindAddr: context.plan.bindAddr,
-    launchStrategy: context.launchStrategy,
-    port: context.plan.port,
-  };
-
-  if (handle) {
-    summary.pid = handle.pid ?? null;
-    return {
-      pid: handle.pid ?? null,
-      readyElapsedMs,
-      stderrTail: trimTail(handle.getStderr()),
-      stdoutTail: trimTail(handle.getStdout()),
-      summary,
-      updatedAt: nowIso(),
-    };
-  }
-
-  const journalTail = context.systemdScope && context.unitName
-    ? await safeReadSystemdJournal(context.systemdScope, context.unitName)
-    : "";
-  if (systemdStatus) {
-    summary.activeState = systemdStatus.activeState;
-    summary.subState = systemdStatus.subState;
-  }
-
+function createDiagnosticsSnapshot(options: {
+  handle: CodeServerProcessHandle | null;
+  journalTail: string;
+  normalizedFailure: ReturnType<typeof collectCodeServerStartupDiagnostics>;
+  readyElapsedMs: number | null;
+}): CodeServerSessionDiagnosticsSnapshot {
   return {
-    activeState: systemdStatus?.activeState ?? null,
-    journalTail,
-    pid: systemdStatus?.execMainPid ?? null,
-    readyElapsedMs,
-    subState: systemdStatus?.subState ?? null,
-    summary,
-    unitName: context.unitName,
-    updatedAt: nowIso(),
-  };
-}
-
-async function buildFailureDiagnostics(
-  context: Awaited<ReturnType<typeof prepareSessionContext>>,
-  handle: CodeServerProcessHandle | null,
-): Promise<CodeServerSessionDiagnosticsSnapshot> {
-  if (handle) {
-    return {
-      pid: handle.pid ?? null,
-      stderrTail: trimTail(handle.getStderr()),
-      stdoutTail: trimTail(handle.getStdout()),
-      summary: {
-        bindAddr: context.plan.bindAddr,
-        launchStrategy: context.launchStrategy,
-        port: context.plan.port,
-      },
-      updatedAt: nowIso(),
-    };
-  }
-
-  const journalTail = context.systemdScope && context.unitName
-    ? await safeReadSystemdJournal(context.systemdScope, context.unitName)
-    : "";
-  const status = context.systemdScope && context.unitName
-    ? await safeReadSystemdStatus(context.systemdScope, context.unitName)
-    : null;
-
-  return {
-    activeState: status?.activeState ?? null,
-    journalTail,
-    pid: status?.execMainPid ?? null,
-    subState: status?.subState ?? null,
+    journalTail: options.journalTail || undefined,
+    pid: options.handle?.pid ?? null,
+    readyElapsedMs: options.readyElapsedMs,
+    stderrTail: options.handle?.getStderr(),
+    stdoutTail: options.handle?.getStdout(),
     summary: {
-      bindAddr: context.plan.bindAddr,
-      launchStrategy: context.launchStrategy,
-      port: context.plan.port,
+      category: options.normalizedFailure.category,
+      details: options.normalizedFailure.details,
+      summary: options.normalizedFailure.summary,
+      watchdogMode: options.normalizedFailure.watchdogMode,
     },
-    unitName: context.unitName,
     updatedAt: nowIso(),
   };
 }
 
-async function buildStopDiagnostics(
-  record: CodeServerSessionRecord,
-  handles: Map<string, CodeServerProcessHandle>,
-  paths: ReturnType<typeof getSessionPaths>,
-): Promise<CodeServerSessionDiagnosticsSnapshot> {
-  const existing = await readCodeServerSessionDiagnostics({
-    sessionKey: record.sessionKey,
-    stateRoot: paths.stateRoot,
-  });
-  const handle = handles.get(record.sessionKey);
-
-  return {
-    journalTail: existing?.journalTail,
-    pid: handle?.pid ?? record.pid ?? null,
-    readyElapsedMs: existing?.readyElapsedMs ?? null,
-    stderrTail: trimTail(handle?.getStderr() ?? existing?.stderrTail ?? ""),
-    stdoutTail: trimTail(handle?.getStdout() ?? existing?.stdoutTail ?? ""),
-    summary: existing?.summary ?? {},
-    updatedAt: nowIso(),
-  };
-}
-
-async function writeDiagnosticsFile(
-  snapshot: CodeServerSessionDiagnosticsSnapshot | null,
-  paths: ReturnType<typeof getSessionPaths>,
-): Promise<void> {
-  if (!snapshot) return;
-
+async function writeDiagnosticsFile(record: CodeServerSessionRecord, paths: ReturnType<typeof getSessionPaths>): Promise<void> {
   await mkdirp(path.dirname(paths.diagnosticsPath));
+  const snapshot = record.diagnostics;
   const diagnostics: CodeServerSessionDiagnostics = {
     diagnosticsPath: paths.diagnosticsPath,
-    journalTail: snapshot.journalTail,
-    readyElapsedMs: snapshot.readyElapsedMs ?? null,
+    journalTail: snapshot?.journalTail,
+    normalizedFailure: snapshot?.summary
+      ? {
+        category: String(snapshot.summary.category ?? "unknown") as CodeServerSessionDiagnostics["normalizedFailure"] extends infer T ? never : never,
+      } as never
+      : null,
+    readyElapsedMs: snapshot?.readyElapsedMs ?? null,
     recordPath: paths.recordPath,
-    stderrTail: snapshot.stderrTail,
-    stdoutTail: snapshot.stdoutTail,
-    summary: snapshot.summary ?? {},
-    updatedAt: snapshot.updatedAt,
+    stderrTail: snapshot?.stderrTail,
+    stdoutTail: snapshot?.stdoutTail,
+    summary: snapshot?.summary ?? {},
+    updatedAt: snapshot?.updatedAt ?? nowIso(),
   };
+  if (snapshot?.summary) {
+    const summary = snapshot.summary as Record<string, unknown>;
+    diagnostics.normalizedFailure = {
+      category: String(summary.category ?? "unknown") as any,
+      code: String(summary.category ?? "unknown"),
+      details: (summary.details as Record<string, unknown>) ?? {},
+      launchStrategy: record.launchStrategy,
+      summary: String(summary.summary ?? ""),
+      watchdogMode: record.watchdogMode,
+    };
+  }
   await fs.promises.writeFile(paths.diagnosticsPath, `${JSON.stringify(diagnostics, null, 2)}\n`, "utf8");
 }
 
 async function writeSessionRecord(record: CodeServerSessionRecord, recordPath: string): Promise<void> {
   await mkdirp(path.dirname(recordPath));
   await fs.promises.writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-}
-
-async function recordToStatus(
-  record: CodeServerSessionRecord,
-  paths: ReturnType<typeof getSessionPaths>,
-  handles: Map<string, CodeServerProcessHandle>,
-): Promise<CodeServerSessionStatus> {
-  return await probeSessionRecord(record, handles, paths);
 }
 
 function getSessionPaths(stateRoot: string, sessionKey: string) {
@@ -836,125 +774,40 @@ function normalizeSessionKey(value: string): string {
   return normalized.replace(/[^A-Za-z0-9._-]+/g, "-");
 }
 
-function sortEnv(value: NodeJS.ProcessEnv): Record<string, string | undefined> {
-  const entries = Object.entries(value)
-    .filter(([, current]) => current !== undefined)
-    .sort(([left], [right]) => left.localeCompare(right));
-
-  return Object.fromEntries(entries);
-}
-
 function normalizeProfileConfig(profile: CodeServerProfileLifecycleOptions | undefined) {
   if (!profile) return null;
 
   return {
     items: [...(profile.items ?? [])].sort(),
     pathMap: profile.pathMap ?? {},
+    persistPolicy: profile.persistPolicy ?? "if-changed",
     persistTo: profile.persistTo ? path.resolve(profile.persistTo) : null,
     restoreFrom: profile.restoreFrom ? path.resolve(profile.restoreFrom) : null,
-    skipMissing: profile.skipMissing ?? true,
-    skipUnreadable: profile.skipUnreadable ?? true,
+    restorePolicy: profile.restorePolicy ?? "if-missing-or-empty",
+    signatureMode: profile.signatureMode ?? "content-hash",
+    snapshotExtensions: profile.snapshotExtensions ?? false,
   };
 }
 
 function hashNormalizedSpec(value: unknown): string {
   return createHash("sha256")
-    .update(stableStringify(value))
+    .update(JSON.stringify(value))
     .digest("hex");
 }
 
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, current]) => `${JSON.stringify(key)}:${stableStringify(current)}`);
-    return `{${entries.join(",")}}`;
-  }
-
-  return JSON.stringify(value);
-}
-
-async function maybeRestoreProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
-  if (!profile?.restoreFrom) return;
-
-  await syncCodeServerProfile({
-    items: profile.items,
-    pathMap: profile.pathMap,
-    skipMissing: profile.skipMissing,
-    skipUnreadable: profile.skipUnreadable,
-    sourceDir: profile.restoreFrom,
-    targetDir: userDataDir,
-  });
-}
-
-async function maybePersistProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
-  if (!profile?.persistTo) return;
-
-  await syncCodeServerProfile({
-    items: profile.items,
-    pathMap: profile.pathMap,
-    skipMissing: profile.skipMissing,
-    skipUnreadable: profile.skipUnreadable,
-    sourceDir: userDataDir,
-    targetDir: profile.persistTo,
-  });
-}
-
-function isLiveState(state: CodeServerSessionState): boolean {
-  return state === "planned" || state === "launching" || state === "ready" || state === "reusing_existing";
-}
-
-function deriveDeadState(record: CodeServerSessionRecord, status: CodeServerSystemdStatus | null): CodeServerSessionState {
-  if (status?.failed) return "failed";
-  if (record.state === "stopped") return "stopped";
-  return "stale";
-}
-
-function deriveDirectDeadState(record: CodeServerSessionRecord, live: boolean): CodeServerSessionState {
-  if (live) return record.state;
+function deriveDeadState(record: CodeServerSessionRecord): CodeServerSessionState {
   if (record.state === "failed") return "failed";
   if (record.state === "stopped") return "stopped";
   return "stale";
 }
 
-function createSystemdFailureProbe(scope: CodeServerSystemdScope, unitName: string) {
-  return async () => {
-    const status = await safeReadSystemdStatus(scope, unitName);
-    if (!status) return null;
-    if (status.failed) {
-      return {
-        code: "systemd_unit_failed",
-        details: {
-          activeState: status.activeState,
-          result: status.result,
-          subState: status.subState,
-          unitName,
-        },
-        message: "systemd reported that the code-server unit failed during startup.",
-      };
-    }
-    return null;
-  };
+function isLiveOrStartingState(state: CodeServerSessionState): boolean {
+  return state === "launching" || state === "planned" || state === "ready" || state === "reusing_existing";
 }
 
-async function safeReadSystemdStatus(scope: CodeServerSystemdScope, unitName: string): Promise<CodeServerSystemdStatus | null> {
+async function safeSystemdSummary(scope: CodeServerSystemdScope, unitName: string): Promise<string> {
   try {
-    return await readCodeServerSystemdStatus({
-      scope,
-      unitName,
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function safeReadSystemdJournal(scope: CodeServerSystemdScope, unitName: string): Promise<string> {
-  try {
-    return await readCodeServerSystemdJournal({
+    return await summarizeCodeServerSystemdJournal({
       scope,
       unitName,
     });
@@ -1004,41 +857,6 @@ function extractHost(bindAddr: string): string {
   return bindAddr.slice(0, bindAddr.lastIndexOf(":"));
 }
 
-function createTailBuffer(limit = DEFAULT_TAIL_LENGTH) {
-  let text = "";
-
-  return {
-    push(next: string) {
-      text = trimTail(`${text}${next}`, limit);
-    },
-    value() {
-      return text;
-    },
-  };
-}
-
-function decorateHandleWithTails(
-  handle: CodeServerProcessHandle,
-  stdoutTail: ReturnType<typeof createTailBuffer>,
-  stderrTail: ReturnType<typeof createTailBuffer>,
-): CodeServerProcessHandle {
-  return {
-    ...handle,
-    getStderr() {
-      return stderrTail.value() || handle.getStderr();
-    },
-    getStdout() {
-      return stdoutTail.value() || handle.getStdout();
-    },
-  };
-}
-
-function trimTail(value: string, limit = DEFAULT_TAIL_LENGTH): string {
-  return value.length > limit
-    ? value.slice(value.length - limit)
-    : value;
-}
-
 async function readJsonFile<T>(filePath: string): Promise<T | null> {
   try {
     const contents = await fs.promises.readFile(filePath, "utf8");
@@ -1059,27 +877,36 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function createStoppedPlaceholderStatus(options: Pick<CodeServerSessionRequest, "sessionKey">): CodeServerSessionStatus {
+function createEmptyStopResult(sessionKey: string): CodeServerSessionStopResult {
   return {
-    bindAddr: "",
     diagnostics: null,
-    extensionsDir: "",
-    failure: null,
-    launchStrategy: "direct",
-    pid: null,
-    port: 0,
-    ready: false,
-    readyAt: null,
-    sessionKey: options.sessionKey,
-    specHash: "",
-    startedAt: null,
-    state: "stopped",
-    stoppedAt: null,
-    systemdScope: null,
-    unitName: null,
-    updatedAt: nowIso(),
-    userDataDir: "",
-    workspacePath: null,
+    status: {
+      bindAddr: "",
+      diagnostics: null,
+      extensionsDir: "",
+      failure: null,
+      health: "stopped",
+      lastStartSummary: null,
+      launchStrategy: "direct",
+      pid: null,
+      port: 0,
+      preparation: null,
+      ready: false,
+      readyAt: null,
+      sanitizedDiagnostics: null,
+      sessionKey,
+      specHash: "",
+      startedAt: null,
+      state: "stopped",
+      stoppedAt: nowIso(),
+      systemdScope: null,
+      unitName: null,
+      updatedAt: nowIso(),
+      userDataDir: "",
+      watchdogMode: "disabled_fallback",
+      workspacePath: null,
+    },
+    stopped: false,
   };
 }
 

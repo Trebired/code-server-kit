@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 import { CodeServerBinaryNotFoundError, CodeServerPackageResolutionError } from "./errors.js";
+import { getCodeServerPreparationStatus } from "./preparation.js";
 import type { CodeServerEntryKind, CodeServerInstallation, ResolveCodeServerInstallationOptions } from "./types.js";
 
 type CodeServerPackageJson = {
@@ -11,7 +12,9 @@ type CodeServerPackageJson = {
   version?: unknown;
 };
 
-function resolveCodeServerInstallation(options: ResolveCodeServerInstallationOptions = {}): CodeServerInstallation {
+function resolveCodeServerInstallation(
+  options: ResolveCodeServerInstallationOptions = {},
+): CodeServerInstallation {
   const packageJsonPath = resolveCodeServerPackageJsonPath(options.resolveFrom);
   const packageRoot = path.dirname(packageJsonPath);
   const packageJson = readCodeServerPackageJson(packageJsonPath);
@@ -27,13 +30,43 @@ function resolveCodeServerInstallation(options: ResolveCodeServerInstallationOpt
     });
   }
 
+  const supportRoot = resolveSupportRoot(packageRoot);
+  const preparationStatus = getCodeServerPreparationStatus({
+    resolveFrom: options.resolveFrom,
+    strictWatchdog: options.strictWatchdog,
+  });
+
   return {
+    defaultCwd: packageRoot,
+    defaultEnv: {},
+    entryArgs: [],
+    entryCommand: detectEntryKind(entryPoint) === "node_script"
+      ? process.execPath
+      : entryPoint,
     entryKind: detectEntryKind(entryPoint),
     entryPoint,
     entryRelativePath,
     packageJsonPath,
+    packageManagerHints: {
+      installCommand: "npm install",
+      packageManager: "npm",
+    },
     packageRoot,
-    supportRoot: resolveSupportRoot(packageRoot),
+    preparationStatus,
+    recommendedReadablePaths: uniquePaths([
+      packageRoot,
+      entryPoint,
+      supportRoot,
+    ]),
+    supportBindings: supportRoot
+      ? [{
+        access: "read",
+        hostPath: supportRoot,
+        mountPath: supportRoot,
+        reason: "code-server support root",
+      }]
+      : [],
+    supportRoot,
     version: typeof packageJson.version === "string" ? packageJson.version : undefined,
   };
 }
@@ -120,6 +153,20 @@ function detectEntryKind(entryPoint: string): CodeServerEntryKind {
 function resolveSupportRoot(packageRoot: string): string | null {
   const supportRoot = path.join(packageRoot, "lib", "vscode");
   return isDirectory(supportRoot) ? supportRoot : null;
+}
+
+function uniquePaths(values: Array<string | null | undefined>): string[] {
+  const normalized: string[] = [];
+
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const nextValue = path.resolve(value);
+    if (!normalized.includes(nextValue)) {
+      normalized.push(nextValue);
+    }
+  }
+
+  return normalized;
 }
 
 function isDirectory(value: string): boolean {

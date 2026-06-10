@@ -2,16 +2,17 @@ import { execFile } from "node:child_process";
 
 import {
   CodeServerInvalidConfigurationError,
+  CodeServerSystemdCollisionError,
   CodeServerSystemdJournalError,
   CodeServerSystemdLaunchError,
   CodeServerSystemdStatusError,
 } from "./errors.js";
+import { collectCodeServerStartupDiagnostics } from "./diagnostics.js";
 import { resolveLogger } from "./logging.js";
 import { createCodeServerLaunchSpec } from "./spec.js";
 import type {
-  CodeServerLaunchPlan,
   CodeServerLaunchSpec,
-  CodeServerPathBinding,
+  CodeServerSystemdFailure,
   CodeServerSystemdJournalOptions,
   CodeServerSystemdLaunchCommand,
   CodeServerSystemdLaunchOptions,
@@ -26,6 +27,25 @@ const DEFAULT_SYSTEMD_JOURNAL_LINES = 100;
 async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptions): Promise<CodeServerSystemdLaunchResult> {
   const log = resolveLogger(options.logger, options.loggerAdapter);
   const command = createCodeServerSystemdLaunchCommand(options);
+  const existing = await safeReadStatus(command.scope, command.unitName);
+
+  if (existing && !existing.notFound) {
+    if (existing.reusable) {
+      return {
+        ...command,
+        output: "reused existing unit",
+      };
+    }
+
+    await stopCodeServerSystemdUnit({
+      logger: options.logger,
+      loggerAdapter: options.loggerAdapter,
+      resetFailed: true,
+      scope: command.scope,
+      unitName: command.unitName,
+    });
+  }
+
   log.info("systemd", "launching code-server transient unit", {
     command: command.command,
     scope: command.scope,
@@ -47,6 +67,13 @@ async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptio
       unitName: command.unitName,
     });
   }
+}
+
+async function restartCodeServerSystemdUnit(options: CodeServerSystemdStopOptions): Promise<void> {
+  await stopCodeServerSystemdUnit({
+    ...options,
+    resetFailed: true,
+  });
 }
 
 function createCodeServerSystemdLaunchCommand(options: CodeServerSystemdLaunchOptions): CodeServerSystemdLaunchCommand {
@@ -194,12 +221,30 @@ async function readCodeServerSystemdJournal(options: CodeServerSystemdJournalOpt
   }
 }
 
+async function summarizeCodeServerSystemdJournal(options: CodeServerSystemdJournalOptions): Promise<string> {
+  const journal = await readCodeServerSystemdJournal(options);
+  const lines = journal.split(/\r?\n/).filter(Boolean);
+  return lines.slice(Math.max(lines.length - 10, 0)).join("\n");
+}
+
+async function extractCodeServerSystemdFailure(options: CodeServerSystemdJournalOptions): Promise<CodeServerSystemdFailure> {
+  const summary = await summarizeCodeServerSystemdJournal(options);
+  return {
+    diagnostics: collectCodeServerStartupDiagnostics({
+      category: "systemd_unit_failed",
+      journal: summary,
+      launchStrategy: "systemd",
+    }),
+    summary,
+  };
+}
+
 function buildSystemdPathProperties(spec: CodeServerLaunchSpec): string[] {
   const properties: string[] = [];
 
   for (const binding of spec.bindings) {
     properties.push(
-      `${binding.access === "write" ? "BindPaths" : "BindReadOnlyPaths"}=${formatSystemdBinding(binding)}`,
+      `${binding.access === "write" ? "BindPaths" : "BindReadOnlyPaths"}=${formatSystemdBinding(binding.hostPath, binding.mountPath)}`,
     );
   }
 
@@ -278,15 +323,16 @@ function parseSystemdShowOutput(output: string, scope: CodeServerSystemdScope, u
     reusable,
     result,
     scope,
+    stateLabel: notFound ? "not_found" : failed ? "failed" : reusable ? "ready" : "stale",
     subState,
     unitName,
   };
 }
 
-function formatSystemdBinding(binding: CodeServerPathBinding): string {
-  return binding.hostPath === binding.mountPath
-    ? binding.hostPath
-    : `${binding.hostPath}:${binding.mountPath}`;
+function formatSystemdBinding(hostPath: string, mountPath: string): string {
+  return hostPath === mountPath
+    ? hostPath
+    : `${hostPath}:${mountPath}`;
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -308,14 +354,28 @@ async function runSystemCommand(command: string, args: string[]): Promise<string
   });
 }
 
+async function safeReadStatus(scope: CodeServerSystemdScope, unitName: string): Promise<CodeServerSystemdStatus | null> {
+  try {
+    return await readCodeServerSystemdStatus({
+      scope,
+      unitName,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export {
   buildDefaultCodeServerUnitName,
   buildSystemdPathProperties,
   createCodeServerSystemdLaunchCommand,
+  extractCodeServerSystemdFailure,
   launchCodeServerWithSystemd,
   normalizeSystemdUnitName,
   parseSystemdShowOutput,
   readCodeServerSystemdJournal,
   readCodeServerSystemdStatus,
+  restartCodeServerSystemdUnit,
   stopCodeServerSystemdUnit,
+  summarizeCodeServerSystemdJournal,
 };

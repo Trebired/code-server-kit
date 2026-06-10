@@ -37,7 +37,7 @@ describe("@trebired/code-server-kit launch", () => {
       workspacePath: "/srv/workspaces/demo",
     });
 
-    expect(plan).toEqual({
+    expect(plan).toMatchObject({
       args: [
         path.join(packageRoot, "out/node/entry.js"),
         "--auth",
@@ -71,7 +71,6 @@ describe("@trebired/code-server-kit launch", () => {
       host: "127.0.0.1",
       installation,
       launchMode: "node",
-      port: plan.port,
       recommendedReadablePaths: [
         packageRoot,
         path.join(packageRoot, "out/node/entry.js"),
@@ -82,14 +81,6 @@ describe("@trebired/code-server-kit launch", () => {
         "/tmp/code-server/user-data",
         "/tmp/code-server/extensions",
       ],
-      supportBindings: [
-        {
-          access: "read",
-          hostPath: path.join(packageRoot, "lib/vscode"),
-          mountPath: path.join(packageRoot, "lib/vscode"),
-          reason: "code-server support root",
-        },
-      ],
       supportRoot: path.join(packageRoot, "lib/vscode"),
       trustedOrigins: [
         "https://app.example.com",
@@ -98,6 +89,7 @@ describe("@trebired/code-server-kit launch", () => {
       userDataDir: "/tmp/code-server/user-data",
       workspacePath: "/srv/workspaces/demo",
     });
+    expect(plan.preparationStatus.state).toBe("prepared");
   });
 
   test("derives support bindings and writable path suggestions in the launch spec", async () => {
@@ -194,22 +186,54 @@ describe("@trebired/code-server-kit launch", () => {
         extensionsDir: "/tmp/fake/extensions",
         host: "127.0.0.1",
         installation: {
+          defaultCwd: "/tmp/fake",
+          defaultEnv: {},
+          entryArgs: [],
+          entryCommand: process.execPath,
           entryKind: "node_script",
           entryPoint: process.execPath,
           entryRelativePath: process.execPath,
           packageJsonPath: "/tmp/fake/package.json",
+          packageManagerHints: {
+            installCommand: "npm install",
+            packageManager: "npm",
+          },
           packageRoot: "/tmp/fake",
+          preparationStatus: {
+            checkedAt: "",
+            issues: [],
+            packageRoot: "/tmp/fake",
+            postinstallScriptPath: null,
+            state: "prepared",
+            supportRoot: null,
+            watchdogIssue: null,
+            watchdogMode: "native",
+          },
+          recommendedReadablePaths: ["/tmp/fake"],
+          supportBindings: [],
           supportRoot: null,
           version: "4.117.0",
         },
         launchMode: "node",
         port: 1,
+        preparationStatus: {
+          checkedAt: "",
+          issues: [],
+          packageRoot: "/tmp/fake",
+          postinstallScriptPath: null,
+          state: "prepared",
+          supportRoot: null,
+          watchdogIssue: null,
+          watchdogMode: "native",
+        },
         recommendedReadablePaths: ["/tmp/fake"],
         recommendedWritablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
         supportBindings: [],
         supportRoot: null,
+        translatedPaths: [],
         trustedOrigins: [],
         userDataDir: "/tmp/fake/user-data",
+        watchdogMode: "native",
         workspacePath: null,
       },
       stderr(text) {

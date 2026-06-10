@@ -13,6 +13,7 @@ type CodeServerLaunchMode = "auto" | "direct" | "node";
 type CodeServerLaunchStrategy = "direct" | "systemd";
 type CodeServerSystemdScope = "user" | "system";
 type CodeServerPathAccessMode = "read" | "write";
+type CodeServerWatchdogMode = "disabled_fallback" | "native";
 type CodeServerSessionState =
   | "planned"
   | "launching"
@@ -21,12 +22,28 @@ type CodeServerSessionState =
   | "stopped"
   | "stale"
   | "reusing_existing";
+type CodeServerSessionHealth = "failed" | "ready" | "starting" | "stale" | "stopped";
+type CodeServerPreparationMode = "auto" | "ensure" | "skip";
+type CodeServerPreparationState = "missing" | "prepared" | "repairable";
 type CodeServerProfileItem =
   | "settings.json"
   | "extensions.json"
   | "keybindings.json"
   | "snippets"
   | "extensions";
+type CodeServerProfileRestorePolicy = "always" | "if-missing-or-empty";
+type CodeServerProfilePersistPolicy = "always" | "if-changed";
+type CodeServerProfileSignatureMode = "content-hash";
+type CodeServerDiagnosticCategory =
+  | "entrypoint_resolution_failed"
+  | "invalid_configuration"
+  | "missing_runtime_dependency"
+  | "preparation_failed"
+  | "process_exited_before_ready"
+  | "startup_timeout"
+  | "systemd_launch_failed"
+  | "systemd_unit_failed"
+  | "unknown";
 
 type CodeServerKitLogMethod = LoggerAdapterLogMethod;
 type CodeServerKitLogEvent = LoggerAdapterEvent;
@@ -35,18 +52,45 @@ type CodeServerKitLogger = LoggerAdapterLogger;
 type CodeServerKitLoggerAdapter = LoggerAdapterWriter;
 type NormalizedCodeServerKitLogger = NormalizedLoggerAdapter;
 
-type CodeServerInstallation = {
-  entryKind: CodeServerEntryKind;
-  entryPoint: string;
-  entryRelativePath: string;
-  packageJsonPath: string;
-  packageRoot: string;
-  supportRoot: string | null;
-  version?: string;
+type CodeServerPreparationIssue = {
+  code: string;
+  details: Record<string, unknown>;
+  message: string;
 };
 
-type ResolveCodeServerInstallationOptions = {
+type CodeServerRuntimeDependencyIssue = CodeServerPreparationIssue & {
+  dependency: string;
+  fatal: boolean;
+};
+
+type CodeServerPreparationStatus = {
+  checkedAt: string;
+  issues: CodeServerPreparationIssue[];
+  packageRoot: string;
+  postinstallScriptPath: string | null;
+  state: CodeServerPreparationState;
+  supportRoot: string | null;
+  watchdogIssue: CodeServerRuntimeDependencyIssue | null;
+  watchdogMode: CodeServerWatchdogMode;
+};
+
+type CodeServerPreparationResult = {
+  changed: boolean;
+  command: string | null;
+  output: string | null;
+  status: CodeServerPreparationStatus;
+};
+
+type CodeServerPreparationOptions = {
+  logger?: CodeServerKitLogger;
+  loggerAdapter?: CodeServerKitLoggerAdapter;
   resolveFrom?: string;
+  strictWatchdog?: boolean;
+};
+
+type CodeServerPackageManagerHints = {
+  installCommand: string;
+  packageManager: "npm" | "unknown";
 };
 
 type CodeServerPathBinding = {
@@ -54,6 +98,34 @@ type CodeServerPathBinding = {
   hostPath: string;
   mountPath: string;
   reason: string;
+};
+
+type CodeServerInstallation = {
+  defaultCwd: string;
+  defaultEnv: NodeJS.ProcessEnv;
+  entryArgs: string[];
+  entryCommand: string;
+  entryKind: CodeServerEntryKind;
+  entryPoint: string;
+  entryRelativePath: string;
+  packageJsonPath: string;
+  packageManagerHints: CodeServerPackageManagerHints;
+  packageRoot: string;
+  preparationStatus: CodeServerPreparationStatus;
+  recommendedReadablePaths: string[];
+  supportBindings: CodeServerPathBinding[];
+  supportRoot: string | null;
+  version?: string;
+};
+
+type ResolveCodeServerInstallationOptions = {
+  resolveFrom?: string;
+  strictWatchdog?: boolean;
+};
+
+type CodeServerTranslatedPath = {
+  hostPath: string;
+  visiblePath: string;
 };
 
 type CreateCodeServerLaunchPlanOptions = {
@@ -67,6 +139,10 @@ type CreateCodeServerLaunchPlanOptions = {
   launchMode?: CodeServerLaunchMode;
   nodeCommand?: string;
   port?: number;
+  preparation?: {
+    mode?: CodeServerPreparationMode;
+    strictWatchdog?: boolean;
+  };
   resolveFrom?: string;
   trustedOrigins?: string[];
   userDataDir?: string;
@@ -89,13 +165,23 @@ type CodeServerLaunchPlan = {
   installation: CodeServerInstallation;
   launchMode: Exclude<CodeServerLaunchMode, "auto">;
   port: number;
+  preparationStatus: CodeServerPreparationStatus;
   recommendedReadablePaths: string[];
   recommendedWritablePaths: string[];
   supportBindings: CodeServerPathBinding[];
   supportRoot: string | null;
+  translatedPaths: CodeServerTranslatedPath[];
   trustedOrigins: string[];
   userDataDir: string;
+  watchdogMode: CodeServerWatchdogMode;
   workspacePath: string | null;
+};
+
+type CodeServerIntegrationPlan = CodeServerLaunchPlan & {
+  defaultCwd: string;
+  defaultEnv: NodeJS.ProcessEnv;
+  hostVisiblePaths: string[];
+  sandboxVisiblePaths: string[];
 };
 
 type CodeServerLaunchSpec = {
@@ -200,6 +286,7 @@ type CodeServerProfileSyncPlan = {
 type CodeServerProfileSkipReason = "missing_source" | "unreadable_source";
 
 type CodeServerProfileSyncResult = {
+  changed: boolean;
   copied: CodeServerProfileSyncEntry[];
   skipped: Array<{
     entry: CodeServerProfileSyncEntry;
@@ -212,13 +299,48 @@ type SyncCodeServerProfileOptions = CreateCodeServerProfileSyncPlanOptions & {
   skipUnreadable?: boolean;
 };
 
+type CodeServerProfileSnapshotEntry = {
+  item: CodeServerProfileItem;
+  present: boolean;
+  signature: string | null;
+};
+
+type CodeServerProfileSnapshot = {
+  entries: CodeServerProfileSnapshotEntry[];
+  rootDir: string;
+  signature: string;
+};
+
+type ReadCodeServerProfileSnapshotOptions = {
+  items?: CodeServerProfileItem[];
+  pathMap?: Partial<CodeServerProfilePathMap>;
+  rootDir: string;
+  snapshotExtensions?: boolean;
+};
+
+type ReadCodeServerProfileSignatureOptions = ReadCodeServerProfileSnapshotOptions;
+
+type PersistCodeServerProfileIfChangedOptions = SyncCodeServerProfileOptions & {
+  signatureMode?: CodeServerProfileSignatureMode;
+  snapshotExtensions?: boolean;
+};
+
+type PersistCodeServerProfileIfChangedResult = CodeServerProfileSyncResult & {
+  nextSignature: string;
+  previousSignature: string | null;
+};
+
 type CodeServerProfileLifecycleOptions = {
   items?: CodeServerProfileItem[];
   pathMap?: Partial<CodeServerProfilePathMap>;
+  persistPolicy?: CodeServerProfilePersistPolicy;
   persistTo?: string;
   restoreFrom?: string;
+  restorePolicy?: CodeServerProfileRestorePolicy;
+  signatureMode?: CodeServerProfileSignatureMode;
   skipMissing?: boolean;
   skipUnreadable?: boolean;
+  snapshotExtensions?: boolean;
 };
 
 type BuildForwardedHeadersOptions = {
@@ -230,6 +352,24 @@ type BuildForwardedHeadersOptions = {
   proto?: string;
 };
 
+type BuildCodeServerWebSocketHeadersOptions = BuildForwardedHeadersOptions & {
+  connection?: string;
+  upgrade?: string;
+};
+
+type CodeServerProxyFailureCategory = "refused" | "reset" | "timeout" | "upstream_failure" | "unknown";
+
+type ClassifyCodeServerProxyFailureOptions = {
+  error?: unknown;
+  statusCode?: number | null;
+};
+
+type CodeServerProxyFailure = {
+  category: CodeServerProxyFailureCategory;
+  details: Record<string, unknown>;
+  message: string;
+};
+
 type CodeServerHtmlResponseOptions = {
   contentType?: string | null;
   headers?: Headers | Record<string, unknown>;
@@ -237,80 +377,44 @@ type CodeServerHtmlResponseOptions = {
   statusCode?: number;
 };
 
-type NormalizedCodeServerStartupFailure = {
-  code: string | null;
+type CodeServerSanitizerOptions = {
+  pathPrefixes?: string[];
+  values?: string[];
+  replacer?(value: string): string;
+};
+
+type CodeServerSanitizedDiagnostics = {
   details: Record<string, unknown>;
-  isCodeServerKitError: boolean;
-  message: string;
-  name: string;
+  summary: string;
 };
 
-type CodeServerSupportBindingSuggestion = {
-  access: CodeServerPathAccessMode;
-  hostPath: string;
-  mountPath: string;
-  reason: string;
-};
-
-type CodeServerLaunchPlanResult = CodeServerLaunchPlan & {
-  entryKind: CodeServerEntryKind;
-  env: NodeJS.ProcessEnv;
-  supportBindings: CodeServerSupportBindingSuggestion[];
-};
-
-type CodeServerSessionManagerOptions = {
-  installation?: CodeServerInstallation;
-  logger?: CodeServerKitLogger;
-  loggerAdapter?: CodeServerKitLoggerAdapter;
-  resolveFrom?: string;
-};
-
-type CodeServerSystemdOptions = {
-  extraProperties?: string[];
-  scope?: CodeServerSystemdScope;
-  unitName?: string;
-};
-
-type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
-  failureProbe?: CodeServerReadyFailureProbe;
-  launchStrategy?: CodeServerLaunchStrategy;
-  logger?: CodeServerKitLogger;
-  loggerAdapter?: CodeServerKitLoggerAdapter;
-  profile?: CodeServerProfileLifecycleOptions;
-  readinessRetryIntervalMs?: number;
-  readinessTimeoutMs?: number;
-  sessionKey: string;
-  stateRoot: string;
-  systemd?: CodeServerSystemdOptions;
-};
-
-type CodeServerSessionFailure = {
+type CodeServerStartupDiagnostics = {
+  category: CodeServerDiagnosticCategory;
   code: string;
   details: Record<string, unknown>;
-  message: string;
-  name: string;
+  journalSummary?: string;
+  launchStrategy: CodeServerLaunchStrategy | null;
+  sanitized?: CodeServerSanitizedDiagnostics;
+  stderrTail?: string;
+  stdoutTail?: string;
+  summary: string;
+  watchdogMode?: CodeServerWatchdogMode;
 };
 
-type CodeServerSessionRecord = {
-  bindAddr: string;
-  diagnostics: CodeServerSessionDiagnosticsSnapshot | null;
-  extensionsDir: string;
-  launchStrategy: CodeServerLaunchStrategy;
-  pid: number | null;
-  port: number;
-  readyAt: string | null;
-  sessionKey: string;
-  specHash: string;
-  startedAt: string | null;
-  state: CodeServerSessionState;
-  stoppedAt: string | null;
-  systemdScope: CodeServerSystemdScope | null;
-  trustedOrigins: string[];
-  unitName: string | null;
-  updatedAt: string;
-  userDataDir: string;
-  workspacePath: string | null;
-  failure?: CodeServerSessionFailure | null;
+type CollectCodeServerStartupDiagnosticsOptions = {
+  category?: CodeServerDiagnosticCategory;
+  error?: unknown;
+  journal?: string;
+  launchStrategy?: CodeServerLaunchStrategy | null;
+  preparationStatus?: CodeServerPreparationStatus | null;
+  process?: Pick<CodeServerProcessHandle, "getStderr" | "getStdout"> | null;
+  sanitizer?: CodeServerSanitizerOptions;
+  watchdogMode?: CodeServerWatchdogMode;
+};
+
+type NormalizedCodeServerStartupFailure = CodeServerStartupDiagnostics & {
+  isCodeServerKitError: boolean;
+  name: string;
 };
 
 type CodeServerSessionDiagnosticsSnapshot = {
@@ -331,6 +435,7 @@ type CodeServerSessionDiagnosticsSnapshot = {
 type CodeServerSessionDiagnostics = {
   diagnosticsPath: string;
   journalTail?: string;
+  normalizedFailure?: CodeServerStartupDiagnostics | null;
   readyElapsedMs?: number | null;
   recordPath: string;
   stderrTail?: string;
@@ -339,16 +444,54 @@ type CodeServerSessionDiagnostics = {
   updatedAt: string;
 };
 
+type CodeServerSessionFailure = {
+  code: string;
+  details: Record<string, unknown>;
+  message: string;
+  name: string;
+};
+
+type CodeServerSessionRecord = {
+  bindAddr: string;
+  diagnostics: CodeServerSessionDiagnosticsSnapshot | null;
+  extensionsDir: string;
+  failure?: CodeServerSessionFailure | null;
+  health: CodeServerSessionHealth;
+  lastStartSummary?: string | null;
+  launchStrategy: CodeServerLaunchStrategy;
+  pid: number | null;
+  port: number;
+  preparation: CodeServerPreparationStatus | null;
+  readyAt: string | null;
+  sanitizedDiagnostics?: CodeServerSanitizedDiagnostics | null;
+  sessionKey: string;
+  specHash: string;
+  startedAt: string | null;
+  state: CodeServerSessionState;
+  stoppedAt: string | null;
+  systemdScope: CodeServerSystemdScope | null;
+  trustedOrigins: string[];
+  unitName: string | null;
+  updatedAt: string;
+  userDataDir: string;
+  watchdogMode: CodeServerWatchdogMode;
+  workspacePath: string | null;
+};
+
 type CodeServerSessionStatus = {
   bindAddr: string;
   diagnostics: CodeServerSessionDiagnostics | null;
   extensionsDir: string;
   failure: CodeServerSessionFailure | null;
+  health: CodeServerSessionHealth;
+  lastStartSummary: string | null;
   launchStrategy: CodeServerLaunchStrategy;
   pid: number | null;
   port: number;
+  preparation: CodeServerPreparationStatus | null;
   ready: boolean;
   readyAt: string | null;
+  sanitizedDiagnostics: CodeServerSanitizedDiagnostics | null;
   sessionKey: string;
   specHash: string;
   startedAt: string | null;
@@ -358,6 +501,7 @@ type CodeServerSessionStatus = {
   unitName: string | null;
   updatedAt: string;
   userDataDir: string;
+  watchdogMode: CodeServerWatchdogMode;
   workspacePath: string | null;
 };
 
@@ -383,12 +527,39 @@ type CodeServerSessionRestartResult = {
   stop: CodeServerSessionStopResult;
 };
 
+type CodeServerSessionManagerOptions = {
+  installation?: CodeServerInstallation;
+  logger?: CodeServerKitLogger;
+  loggerAdapter?: CodeServerKitLoggerAdapter;
+  resolveFrom?: string;
+};
+
+type CodeServerSystemdOptions = {
+  extraProperties?: string[];
+  scope?: CodeServerSystemdScope;
+  unitName?: string;
+};
+
+type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
+  failureProbe?: CodeServerReadyFailureProbe;
+  launchStrategy?: CodeServerLaunchStrategy;
+  logger?: CodeServerKitLogger;
+  loggerAdapter?: CodeServerKitLoggerAdapter;
+  profile?: CodeServerProfileLifecycleOptions;
+  readinessRetryIntervalMs?: number;
+  readinessTimeoutMs?: number;
+  sanitizer?: CodeServerSanitizerOptions;
+  sessionKey: string;
+  stateRoot: string;
+  systemd?: CodeServerSystemdOptions;
+};
+
 type CodeServerSessionManager = {
-  getStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null>;
+  getStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null>;
   readDiagnostics(options: Pick<CodeServerSessionRequest, "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null>;
   restart(options: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult>;
   start(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult>;
-  stop(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sessionKey" | "stateRoot"> & {
+  stop(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
     signal?: NodeJS.Signals | number;
   }): Promise<CodeServerSessionStopResult | null>;
 };
@@ -426,6 +597,7 @@ type CodeServerSystemdStatus = {
   reusable: boolean;
   result: string | null;
   scope: CodeServerSystemdScope;
+  stateLabel: "failed" | "not_found" | "ready" | "stale";
   subState: string | null;
   unitName: string;
 };
@@ -446,11 +618,20 @@ type CodeServerSystemdStopOptions = {
   unitName: string;
 };
 
+type CodeServerSystemdFailure = {
+  diagnostics: CodeServerStartupDiagnostics;
+  summary: string;
+};
+
 export type {
+  BuildCodeServerWebSocketHeadersOptions,
   BuildForwardedHeadersOptions,
+  ClassifyCodeServerProxyFailureOptions,
+  CodeServerDiagnosticCategory,
   CodeServerEntryKind,
   CodeServerHtmlResponseOptions,
   CodeServerInstallation,
+  CodeServerIntegrationPlan,
   CodeServerKitGenericLogMethod,
   CodeServerKitLogEvent,
   CodeServerKitLogger,
@@ -459,28 +640,45 @@ export type {
   CodeServerLaunchMode,
   CodeServerLaunchOptions,
   CodeServerLaunchPlan,
-  CodeServerLaunchPlanResult,
   CodeServerLaunchSpec,
   CodeServerLaunchStrategy,
+  CodeServerPackageManagerHints,
   CodeServerPathAccessMode,
   CodeServerPathBinding,
+  CodeServerPreparationIssue,
+  CodeServerPreparationMode,
+  CodeServerPreparationOptions,
+  CodeServerPreparationResult,
+  CodeServerPreparationState,
+  CodeServerPreparationStatus,
   CodeServerProcessExit,
   CodeServerProcessHandle,
   CodeServerProfileEntryKind,
   CodeServerProfileItem,
   CodeServerProfileLifecycleOptions,
   CodeServerProfilePathMap,
+  CodeServerProfilePersistPolicy,
+  CodeServerProfileRestorePolicy,
+  CodeServerProfileSignatureMode,
   CodeServerProfileSkipReason,
+  CodeServerProfileSnapshot,
+  CodeServerProfileSnapshotEntry,
   CodeServerProfileSyncEntry,
   CodeServerProfileSyncPlan,
   CodeServerProfileSyncResult,
+  CodeServerProxyFailure,
+  CodeServerProxyFailureCategory,
   CodeServerReadyFailure,
   CodeServerReadyFailureProbe,
   CodeServerReadyOptions,
   CodeServerReadyResult,
+  CodeServerRuntimeDependencyIssue,
+  CodeServerSanitizedDiagnostics,
+  CodeServerSanitizerOptions,
   CodeServerSessionDiagnostics,
   CodeServerSessionDiagnosticsSnapshot,
   CodeServerSessionFailure,
+  CodeServerSessionHealth,
   CodeServerSessionManager,
   CodeServerSessionManagerOptions,
   CodeServerSessionRecord,
@@ -490,7 +688,7 @@ export type {
   CodeServerSessionState,
   CodeServerSessionStatus,
   CodeServerSessionStopResult,
-  CodeServerSupportBindingSuggestion,
+  CodeServerSystemdFailure,
   CodeServerSystemdJournalOptions,
   CodeServerSystemdLaunchCommand,
   CodeServerSystemdLaunchOptions,
@@ -499,11 +697,22 @@ export type {
   CodeServerSystemdScope,
   CodeServerSystemdStatus,
   CodeServerSystemdStopOptions,
+  CodeServerSupportBindingSuggestion,
+  CodeServerStartupDiagnostics,
+  CodeServerTranslatedPath,
+  CodeServerWatchdogMode,
+  CollectCodeServerStartupDiagnosticsOptions,
   CreateCodeServerLaunchPlanOptions,
   CreateCodeServerProfileSyncPlanOptions,
   LaunchCodeServerProcessOptions,
   NormalizedCodeServerKitLogger,
   NormalizedCodeServerStartupFailure,
+  PersistCodeServerProfileIfChangedOptions,
+  PersistCodeServerProfileIfChangedResult,
+  ReadCodeServerProfileSignatureOptions,
+  ReadCodeServerProfileSnapshotOptions,
   ResolveCodeServerInstallationOptions,
   SyncCodeServerProfileOptions,
 };
+
+type CodeServerSupportBindingSuggestion = CodeServerPathBinding;

@@ -1,9 +1,12 @@
-import { isCodeServerKitError } from "./errors.js";
+import {
+  collectCodeServerStartupDiagnostics,
+  normalizeCodeServerStartupFailure,
+  sanitizeCodeServerDiagnostics,
+} from "./diagnostics.js";
 import type {
   CodeServerLaunchPlan,
   CodeServerLaunchSpec,
   CodeServerPathBinding,
-  NormalizedCodeServerStartupFailure,
 } from "./types.js";
 import { buildCodeServerLaunchSpec } from "./plan.js";
 
@@ -15,40 +18,6 @@ function formatCodeServerCommand(value: Pick<CodeServerLaunchPlan, "args" | "com
   return [value.command, ...value.args]
     .map((part) => shellEscape(part))
     .join(" ");
-}
-
-function normalizeCodeServerStartupFailure(error: unknown): NormalizedCodeServerStartupFailure {
-  if (isCodeServerKitError(error)) {
-    return {
-      code: error.code,
-      details: {
-        ...error.details,
-      },
-      isCodeServerKitError: true,
-      message: error.message,
-      name: error.name,
-    };
-  }
-
-  if (error instanceof Error) {
-    return {
-      code: typeof (error as Error & { code?: unknown }).code === "string"
-        ? String((error as Error & { code?: unknown }).code)
-        : null,
-      details: {},
-      isCodeServerKitError: false,
-      message: error.message,
-      name: error.name,
-    };
-  }
-
-  return {
-    code: null,
-    details: {},
-    isCodeServerKitError: false,
-    message: String(error),
-    name: "Error",
-  };
 }
 
 function buildPathBindings(paths: Array<CodeServerPathBinding | null | undefined>): CodeServerPathBinding[] {
@@ -74,7 +43,9 @@ function shellEscape(value: string): string {
 
 export {
   buildPathBindings,
+  collectCodeServerStartupDiagnostics,
   createCodeServerLaunchSpec,
   formatCodeServerCommand,
   normalizeCodeServerStartupFailure,
+  sanitizeCodeServerDiagnostics,
 };

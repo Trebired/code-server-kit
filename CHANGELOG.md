@@ -4,6 +4,15 @@
 
 - nothing yet
 
+## 1.0.0
+
+- expand the package from a session helper into a fuller generic `code-server` integration layer
+- add package preparation status and auto-repair helpers for the installed `code-server` dependency
+- add richer integration planning, diagnostics normalization, redaction, and proxy websocket helpers
+- add profile snapshot and deduplicated persistence helpers
+- strengthen session lifecycle ownership with inflight dedup, richer status metadata, and persisted diagnostics
+- expand systemd helpers with restart, journal summarization, and structured failure extraction
+
 ## 0.3.0
 
 - expand the package from launch planning into a full generic `code-server` session runtime

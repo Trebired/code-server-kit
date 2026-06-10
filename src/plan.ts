@@ -8,13 +8,15 @@ import {
   CodeServerLaunchPlanningError,
   CodeServerPortAllocationError,
 } from "./errors.js";
+import { ensureCodeServerPrepared } from "./preparation.js";
 import { resolveCodeServerInstallation } from "./resolve.js";
 import type {
   CodeServerInstallation,
+  CodeServerIntegrationPlan,
   CodeServerLaunchOptions,
   CodeServerLaunchPlan,
-  CodeServerLaunchSpec,
   CodeServerLaunchMode,
+  CodeServerLaunchSpec,
   CodeServerPathBinding,
   CreateCodeServerLaunchPlanOptions,
 } from "./types.js";
@@ -22,18 +24,27 @@ import type {
 const DEFAULT_BIND_HOST = "127.0.0.1";
 const DIRECT_LAUNCH_ACCESS = fs.constants.X_OK;
 
-async function createCodeServerLaunchPlan(options: CreateCodeServerLaunchPlanOptions): Promise<CodeServerLaunchPlan> {
+async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPlanOptions): Promise<CodeServerIntegrationPlan> {
   try {
-    const installation = options.installation ?? resolveCodeServerInstallation({
+    if (options.preparation?.mode !== "skip") {
+      await ensureCodeServerPrepared({
+        resolveFrom: options.resolveFrom,
+        strictWatchdog: options.preparation?.strictWatchdog,
+      });
+    }
+
+    const installation = options.installation ?? await resolveCodeServerInstallation({
       resolveFrom: options.resolveFrom,
+      strictWatchdog: options.preparation?.strictWatchdog,
     });
     const launchMode = normalizeLaunchMode(options.launchMode, installation);
     const { extensionsDir, userDataDir } = resolveLaunchDirectories(options);
     const binding = await resolveLaunchBinding(options);
     const workspacePath = options.workspacePath ? path.resolve(options.workspacePath) : null;
     const trustedOrigins = normalizeTrustedOrigins(options.trustedOrigins);
-    const cwd = path.resolve(options.cwd ?? installation.packageRoot);
+    const cwd = path.resolve(options.cwd ?? installation.defaultCwd);
     const env = {
+      ...installation.defaultEnv,
       ...(options.env ?? {}),
     };
     const cliArgs = buildCodeServerArgs({
@@ -48,76 +59,79 @@ async function createCodeServerLaunchPlan(options: CreateCodeServerLaunchPlanOpt
       assertDirectLaunchAvailable(installation.entryPoint);
     }
 
-    const supportBindings = buildSupportBindings(installation);
+    const command = launchMode === "node"
+      ? normalizeNodeCommand(options.nodeCommand)
+      : installation.entryPoint;
+    const args = launchMode === "node"
+      ? [installation.entryPoint, ...cliArgs]
+      : cliArgs;
     const recommendedReadablePaths = uniquePaths([
-      installation.packageRoot,
-      installation.entryPoint,
-      installation.supportRoot,
+      ...installation.recommendedReadablePaths,
       workspacePath,
     ]);
     const recommendedWritablePaths = uniquePaths([
       userDataDir,
       extensionsDir,
     ]);
+    const translatedPaths = uniquePaths([
+      installation.packageRoot,
+      installation.supportRoot,
+      workspacePath,
+      userDataDir,
+      extensionsDir,
+    ]).map((value) => ({
+      hostPath: value,
+      visiblePath: value,
+    }));
 
-    return launchMode === "node"
-      ? {
-        args: [installation.entryPoint, ...cliArgs],
-        bindAddr: binding.bindAddr,
-        codeServerPackageRoot: installation.packageRoot,
-        command: normalizeNodeCommand(options.nodeCommand),
-        cwd,
-        entryKind: installation.entryKind,
-        entryPoint: installation.entryPoint,
-        env,
-        extensionsDir,
-        host: binding.host,
-        installation,
-        launchMode,
-        port: binding.port,
-        recommendedReadablePaths,
-        recommendedWritablePaths,
-        supportBindings,
-        supportRoot: installation.supportRoot,
-        trustedOrigins,
-        userDataDir,
-        workspacePath,
-      }
-      : {
-        args: cliArgs,
-        bindAddr: binding.bindAddr,
-        codeServerPackageRoot: installation.packageRoot,
-        command: installation.entryPoint,
-        cwd,
-        entryKind: installation.entryKind,
-        entryPoint: installation.entryPoint,
-        env,
-        extensionsDir,
-        host: binding.host,
-        installation,
-        launchMode,
-        port: binding.port,
-        recommendedReadablePaths,
-        recommendedWritablePaths,
-        supportBindings,
-        supportRoot: installation.supportRoot,
-        trustedOrigins,
-        userDataDir,
-        workspacePath,
-      };
+    return {
+      args,
+      bindAddr: binding.bindAddr,
+      codeServerPackageRoot: installation.packageRoot,
+      command,
+      cwd,
+      defaultCwd: installation.defaultCwd,
+      defaultEnv: {
+        ...installation.defaultEnv,
+      },
+      entryKind: installation.entryKind,
+      entryPoint: installation.entryPoint,
+      env,
+      extensionsDir,
+      host: binding.host,
+      hostVisiblePaths: [...recommendedReadablePaths, ...recommendedWritablePaths],
+      installation,
+      launchMode,
+      port: binding.port,
+      preparationStatus: installation.preparationStatus,
+      recommendedReadablePaths,
+      recommendedWritablePaths,
+      sandboxVisiblePaths: translatedPaths.map((value) => value.visiblePath),
+      supportBindings: [...installation.supportBindings],
+      supportRoot: installation.supportRoot,
+      translatedPaths,
+      trustedOrigins,
+      userDataDir,
+      watchdogMode: installation.preparationStatus.watchdogMode,
+      workspacePath,
+    };
   } catch (error) {
-    if (error instanceof CodeServerLaunchPlanningError || error instanceof CodeServerInvalidConfigurationError) {
+    if (
+      error instanceof CodeServerLaunchPlanningError ||
+      error instanceof CodeServerInvalidConfigurationError ||
+      error instanceof Error && "code" in error
+    ) {
       throw error;
     }
 
-    if (error instanceof Error && "code" in error) {
-      throw error;
-    }
-
-    throw new CodeServerLaunchPlanningError("Could not create a code-server launch plan.", {
+    throw new CodeServerLaunchPlanningError("Could not create a code-server integration plan.", {
       cause: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+async function createCodeServerLaunchPlan(options: CreateCodeServerLaunchPlanOptions): Promise<CodeServerLaunchPlan> {
+  return await createCodeServerIntegrationPlan(options);
 }
 
 async function createCodeServerLaunch(options: CodeServerLaunchOptions): Promise<CodeServerLaunchPlan> {
@@ -395,17 +409,6 @@ function assertDirectLaunchAvailable(entryPoint: string) {
   }
 }
 
-function buildSupportBindings(installation: CodeServerInstallation): CodeServerPathBinding[] {
-  if (!installation.supportRoot) return [];
-
-  return [{
-    access: "read",
-    hostPath: installation.supportRoot,
-    mountPath: installation.supportRoot,
-    reason: "code-server support root",
-  }];
-}
-
 function uniquePaths(values: Array<string | null | undefined>): string[] {
   const normalized: string[] = [];
 
@@ -438,6 +441,7 @@ export {
   allocatePort,
   buildCodeServerArgs,
   buildCodeServerLaunchSpec,
+  createCodeServerIntegrationPlan,
   createCodeServerLaunch,
   createCodeServerLaunchPlan,
   normalizeTrustedOrigins,

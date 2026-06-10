@@ -1,7 +1,7 @@
 {
   "name": "@trebired/code-server-kit",
-  "version": "0.3.0",
-  "description": "Framework-agnostic code-server session runtime for Node.js apps with installation resolution, launch planning, lifecycle control, and Linux-first systemd support.",
+  "version": "1.0.0",
+  "description": "Framework-agnostic code-server integration layer for Node.js apps with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "license": "MIT",
   "keywords": [
     "code-server",

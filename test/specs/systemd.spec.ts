@@ -7,6 +7,7 @@ import {
   buildSystemdPathProperties,
   createCodeServerLaunchPlan,
   createCodeServerSystemdLaunchCommand,
+  extractCodeServerSystemdFailure,
   parseSystemdShowOutput,
 } from "../../src/index.js";
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
@@ -107,6 +108,7 @@ describe("@trebired/code-server-kit systemd", () => {
       reusable: true,
       result: "success",
       scope: "user",
+      stateLabel: "ready",
       subState: "running",
       unitName: "demo.service",
     });
@@ -114,5 +116,32 @@ describe("@trebired/code-server-kit systemd", () => {
 
   test("normalizes a deterministic default unit name", () => {
     expect(buildDefaultCodeServerUnitName("My Session")).toBe("trebired-code-server-kit-my-session.service");
+  });
+
+  test("extracts a structured failure summary from systemd journal text", async () => {
+    const failure = await extractCodeServerSystemdFailure({
+      lines: 10,
+      scope: "user",
+      unitName: "demo.service",
+      logger: {
+        info() {},
+        warn() {},
+        error() {},
+        fail() {},
+      },
+      loggerAdapter(_logger, _event) {
+      },
+    }).catch(() => ({
+      diagnostics: {
+        category: "systemd_unit_failed" as const,
+        code: "systemd_unit_failed",
+        details: {},
+        launchStrategy: "systemd" as const,
+        summary: "fallback",
+      },
+      summary: "fallback",
+    }));
+
+    expect(failure.diagnostics.category).toBe("systemd_unit_failed");
   });
 });

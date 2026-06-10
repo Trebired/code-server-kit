@@ -1,52 +1,37 @@
 # @trebired/code-server-kit
 
-Framework-agnostic `code-server` session runtime for Node.js applications.
+Framework-agnostic `code-server` integration layer for Node.js applications.
 
-`@trebired/code-server-kit` is the generic Trebired package for owning the full `code-server` lifecycle on Linux-first hosts:
+`@trebired/code-server-kit` is the generic Trebired package for owning the real `code-server` integration lifecycle on Linux-first hosts:
 
-- resolve the installed `code-server`
-- build launch plans and sandbox-friendly execution specs
-- restore and persist allowlisted profile data
-- launch directly or through transient systemd services
-- supervise readiness and startup failures
-- reuse, stop, restart, and inspect sessions with structured metadata
+- package preparation and bootstrap repair
+- installation and support-root resolution
+- launch and sandbox path planning
+- direct and transient systemd launching
+- session reuse, restart, stop, and status refresh
+- startup diagnostics and redaction
+- allowlisted profile restore and persistence
+- proxy-facing helpers for forwarded and websocket headers
 
-The package stays generic on purpose. It does not know about products, repositories, organizations, users, routes, or app-specific filesystem conventions.
+The package stays generic on purpose. It does not know about products, repositories, organizations, routes, or app-specific filesystem conventions.
 
 ## Install
 
 Runtime target: Node.js 22+ on Linux first.
 
 ```sh
-npm install @trebired/code-server-kit code-server
+npm install @trebired/code-server-kit
 ```
 
-## What Host Apps Still Provide
+`code-server` is installed as a normal dependency of this package. A host application only needs a separate direct `code-server` dependency when it intentionally wants to override how resolution happens.
 
-After the session runtime layer is in place, host applications mostly choose policy:
+## Preferred Flow
 
-- `sessionKey`
-- `stateRoot`
-- `workspacePath`
-- `trustedOrigins`
-- `launchStrategy`
-- systemd `scope` when using systemd
-- optional profile roots
-- optional logging and policy hooks
+The preferred host integration flow is now:
 
-The package owns the generic mechanics:
-
-- installation resolution
-- entrypoint resolution
-- `node <entry.js>` vs direct executable launch
-- runtime profile directory defaults
-- direct launch vs systemd launch translation
-- readiness probing
-- session reuse checks
-- session metadata persistence
-- startup diagnostics normalization
-
-## Quick Start
+1. Create a session manager.
+2. Start a session with `sessionKey`, `stateRoot`, `workspacePath`, and trusted origins.
+3. Let the package prepare `code-server`, restore profile data, choose launch mechanics, supervise readiness, and persist diagnostics.
 
 ```ts
 import {
@@ -58,7 +43,6 @@ const sessions = createCodeServerSessionManager({
 });
 
 const started = await sessions.start({
-  launchStrategy: "direct",
   sessionKey: "workspace-42",
   stateRoot: "/srv/code-server-state",
   trustedOrigins: [
@@ -82,11 +66,39 @@ await sessions.stop({
 });
 ```
 
-## Main Session APIs
+## What The Package Owns
+
+High-level APIs now own generic mechanics that host apps previously had to rebuild:
+
+- checking whether the installed `code-server` package is fully prepared
+- running the package-owned bootstrap script when preparation is repairable
+- resolving the true entrypoint and support root
+- deriving support-tree read-only bind suggestions
+- deciding `node <entry.js>` vs direct execution
+- preparing profile directories and syncing only allowlisted items
+- handling missing optional native watchdog support with a non-fatal fallback mode
+- deduplicating concurrent starts for the same `sessionKey`
+- reusing healthy sessions when the effective spec still matches
+- invalidating stale sessions and restarting cleanly when the spec changes
+- collecting and sanitizing startup diagnostics
+- translating launch plans into transient systemd unit arguments
+
+Host applications mostly provide:
+
+- `sessionKey`
+- `stateRoot`
+- `workspacePath`
+- `trustedOrigins`
+- `launchStrategy`
+- systemd `scope` when using systemd
+- optional profile and sanitization policy
+- optional logging
+
+## Main High-Level APIs
 
 ### `createCodeServerSessionManager(options?)`
 
-Creates the main high-level lifecycle object and wires logging through `@trebired/logger-adapter`.
+Creates the main lifecycle object.
 
 Manager methods:
 
@@ -98,120 +110,78 @@ Manager methods:
 
 ### `startCodeServerSession(options)`
 
-One-shot helper that creates a manager and starts a session.
-
-Lifecycle-managed session APIs require:
-
-- `sessionKey`
-- `stateRoot`
+One-shot helper around the session manager.
 
 Defaults:
 
 - `launchStrategy` defaults to `"direct"`
-- reuse defaults to exact normalized spec match
-- `dataRoot` defaults to `stateRoot/sessions/<sessionKey>/runtime`
-- systemd never defaults its scope
-
-### `stopCodeServerSession(options)`
-
-Stops a direct child process or a systemd transient unit using the stored session metadata. If profile persistence is configured, the package persists allowlisted profile items after stop.
-
-### `restartCodeServerSession(options)`
-
-Runs stop then start with the same session request shape.
+- preparation defaults to auto-ensure
+- exact-spec inflight starts join each other
+- conflicting inflight starts fail with a structured conflict error
+- profile restore defaults to `"if-missing-or-empty"`
+- profile persist defaults to `"if-changed"`
 
 ### `getCodeServerSessionStatus(options)`
 
-Loads the package-owned session record and re-probes the live backing resource instead of trusting disk alone.
+Returns a refreshed status object with:
+
+- `state`
+- `health`
+- `ready`
+- `preparation`
+- `watchdogMode`
+- `lastStartSummary`
+- `sanitizedDiagnostics`
 
 ### `readCodeServerSessionDiagnostics(options)`
 
-Reads the persisted diagnostics snapshot for a session.
-
-## Session Metadata
-
-The package stores generic lifecycle metadata under:
+Reads the persisted diagnostics snapshot under:
 
 - `<stateRoot>/sessions/<safe-session-key>/session.json`
 - `<stateRoot>/sessions/<safe-session-key>/diagnostics.json`
 
-The session record tracks values such as:
+## Preparation APIs
 
-- `state`
-- `launchStrategy`
-- `specHash`
-- `bindAddr`
-- `port`
-- `userDataDir`
-- `extensionsDir`
-- `workspacePath`
-- `pid` for direct launches
-- `unitName` and `systemdScope` for systemd launches
-- timestamps and normalized failure details
+### `getCodeServerPreparationStatus(options?)`
 
-This disk-backed record is what allows the package to reuse, stop, restart, and inspect sessions across calls.
+Checks whether the installed package looks ready to run and reports:
 
-## Reuse Model
+- package root
+- support root
+- bootstrap script path
+- preparation state
+- issues
+- watchdog mode
 
-The package builds a normalized session spec from the effective launch plan plus lifecycle-relevant inputs such as:
+### `ensureCodeServerPrepared(options?)`
 
-- launch strategy
-- workspace path
-- trusted origins
-- env overrides
-- profile restore and persist configuration
-- systemd scope and unit naming
+Runs the package-owned bootstrap script when the installation is repairable.
 
-That normalized spec is hashed and stored. Reuse only happens when:
-
-- the same `sessionKey` is used
-- the spec hash matches exactly
-- the backing process or unit still exists
-- the target port becomes ready again
-
-If the hash changes, the package marks the old record stale, stops the old runtime when needed, and starts a fresh session.
+Use this explicitly when a host wants a preflight step. Otherwise the session manager runs it automatically.
 
 ## Launch Planning APIs
 
-The lower-level launch planning APIs remain available for callers that want policy ownership while still avoiding `code-server` package-layout details.
+The lower-level planning APIs still exist for hosts that want custom execution layers.
 
-### `resolveCodeServerInstallation(options?)`
+### `createCodeServerIntegrationPlan(options)`
 
-Returns installation metadata:
+This is the preferred lower-level planning API. It returns:
 
-- `packageRoot`
-- `packageJsonPath`
-- `entryPoint`
-- `entryRelativePath`
-- `entryKind`
-- `supportRoot`
-- `version`
+- final `command` and `args`
+- `cwd` and `env`
+- preparation status
+- support-root bind suggestions
+- readable and writable path suggestions
+- host-visible and sandbox-visible path lists
+- translated path pairs
 
 ### `createCodeServerLaunchPlan(options)`
 
-Returns a structured launch plan with:
-
-- `command`
-- `args`
-- `cwd`
-- `env`
-- `entryKind`
-- `launchMode`
-- `installation`
-- `bindAddr`
-- `host`
-- `port`
-- `supportRoot`
-- `supportBindings`
-- `recommendedReadablePaths`
-- `recommendedWritablePaths`
-- `userDataDir`
-- `extensionsDir`
-- `workspacePath`
+Compatibility-friendly alias for callers that still want the previous naming. It now routes through the richer integration-plan path.
 
 ### `createCodeServerLaunchSpec(plan)`
 
-Converts the launch plan into an execution-oriented shape:
+Converts the plan into a smaller execution-oriented shape:
 
 - `command`
 - `args`
@@ -221,11 +191,9 @@ Converts the launch plan into an execution-oriented shape:
 - `readablePaths`
 - `writablePaths`
 
-This is useful when a host wants to feed the same plan into a container, custom sandbox, or generated unit file.
+## Direct And Systemd Launching
 
-## Direct Launch
-
-Use the built-in child-process helper when you want a plain process owned by the current Node.js runtime.
+### Direct
 
 ```ts
 import {
@@ -248,42 +216,67 @@ await waitForCodeServerReady({
 });
 ```
 
-The lifecycle manager uses this same lower-level path internally for `launchStrategy: "direct"`.
+### Systemd
 
-## Systemd Launch
-
-Linux systemd support is built into the same package and stays explicit.
-
-Use `launchStrategy: "systemd"` only when you also provide:
-
-- `systemd.scope: "user"` or `"system"`
-
-The package uses transient services through `systemd-run`, not scopes.
+Linux-first transient systemd support is built into the same package and stays explicit.
 
 Relevant APIs:
 
 - `launchCodeServerWithSystemd(options)`
+- `restartCodeServerSystemdUnit(options)`
 - `stopCodeServerSystemdUnit(options)`
 - `readCodeServerSystemdStatus(options)`
 - `readCodeServerSystemdJournal(options)`
+- `summarizeCodeServerSystemdJournal(options)`
+- `extractCodeServerSystemdFailure(options)`
 - `createCodeServerSystemdLaunchCommand(options)`
-- `buildSystemdPathProperties(spec)`
 
-The systemd translation layer derives:
+`systemd` launches require an explicit scope:
 
-- `--unit`
-- `--working-directory`
-- `--setenv`
-- `BindPaths`
-- `BindReadOnlyPaths`
-- `ReadOnlyPaths`
-- `ReadWritePaths`
+- `scope: "user"`
+- `scope: "system"`
 
-That means host applications do not need to rebuild transient unit arguments from raw launch-plan data themselves.
+There is no package default.
 
-## Profile Restore And Persist
+## Diagnostics And Redaction
 
-Profile sync stays allowlist-based rather than copying the entire runtime tree.
+### `collectCodeServerStartupDiagnostics(options)`
+
+Builds a structured diagnostic object with:
+
+- category
+- code
+- summary
+- machine-readable details
+- launch strategy
+- watchdog mode
+- stderr and stdout tails
+- systemd journal summary
+
+Supported normalized categories include:
+
+- `startup_timeout`
+- `process_exited_before_ready`
+- `systemd_launch_failed`
+- `systemd_unit_failed`
+- `entrypoint_resolution_failed`
+- `missing_runtime_dependency`
+- `preparation_failed`
+- `invalid_configuration`
+
+### `sanitizeCodeServerDiagnostics(diagnostics, options)`
+
+Supports:
+
+- path-prefix redaction
+- exact-value redaction
+- a custom replacer hook
+
+The package only sanitizes when a host asks for it.
+
+## Profile Lifecycle
+
+Profile sync stays allowlist-based instead of copying the whole runtime tree.
 
 Supported items:
 
@@ -293,56 +286,36 @@ Supported items:
 - `snippets`
 - `extensions`
 
-Lower-level helpers:
+Lower-level APIs:
 
 - `createCodeServerProfileSyncPlan(options)`
 - `syncCodeServerProfile(options)`
-- `resolveCodeServerProfilePathMap(overrides?)`
+- `readCodeServerProfileSnapshot(options)`
+- `readCodeServerProfileSignature(options)`
+- `persistCodeServerProfileIfChanged(options)`
 
-Lifecycle integration:
+Session-manager integration now handles:
 
-- restore before launch with `profile.restoreFrom`
-- persist after stop with `profile.persistTo`
-- skip missing or unreadable sources cleanly by default
+- restore only when runtime profile data is missing or empty by default
+- persistence only when the allowlisted signature changed by default
+- optional extension snapshotting in the signature
 
-Example:
+## Proxy Helpers
 
-```ts
-await sessions.start({
-  profile: {
-    items: ["settings.json", "keybindings.json", "extensions"],
-    persistTo: "/srv/profiles/demo",
-    restoreFrom: "/srv/profiles/demo",
-  },
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-  workspacePath: "/srv/workspaces/demo",
-});
-```
+Generic proxy-facing helpers now include:
 
-## Readiness And Failure Handling
+- `buildForwardedHeaders(options)`
+- `buildCodeServerWebSocketHeaders(options)`
+- `isCodeServerHtmlResponse(options)`
+- `classifyCodeServerProxyFailure(options)`
 
-### `waitForCodeServerReady(options)`
-
-Waits for the TCP port to accept connections and can also:
-
-- fail on startup timeout
-- fail on direct-process early exit
-- fail on a caller-provided failure probe
-
-The lifecycle manager builds on this and adds strategy-aware supervision:
-
-- direct-process stdout and stderr tails
-- systemd state probing
-- systemd journal collection
-- normalized startup failure metadata
+These helpers stay framework-agnostic and do not add product-specific route rewriting.
 
 ## Structured Errors
 
-The package throws structured error classes so callers can log and branch on them reliably.
-
 Examples:
 
+- `CodeServerPreparationError`
 - `CodeServerInvalidConfigurationError`
 - `CodeServerInstallationResolutionError`
 - `CodeServerEntrypointResolutionError`
@@ -357,39 +330,33 @@ Examples:
 - `CodeServerSystemdStatusError`
 - `CodeServerSystemdJournalError`
 
-Use `normalizeCodeServerStartupFailure(error)` when you want one tagged object shape for logs or API responses.
+Use `normalizeCodeServerStartupFailure(error)` when you want one consistent structured startup-failure payload.
 
-## Reverse Proxy Helpers
+## Migration Note
 
-The package also includes a few small generic embedding helpers:
+Existing host apps should delete generic glue for:
 
-- `buildForwardedHeaders(options)`
-- `normalizeTrustedOrigin(value)`
-- `isCodeServerHtmlResponse(options)`
+- reading from `node_modules/code-server/...` directly
+- running `code-server` postinstall repair themselves
+- discovering support roots or remapping entrypoints manually
+- building support-tree read-only bind lists manually
+- translating host paths into sandbox-visible `code-server` paths
+- deduplicating concurrent starts for the same session key
+- comparing profile state before persisting
+- parsing raw startup output into user-facing summaries
+- building websocket proxy headers and classifying common upstream failures
 
-These helpers stay intentionally small. They do not add product-specific route rewriting.
+Prefer:
 
-## Logging
+- `createCodeServerSessionManager()`
+- `startCodeServerSession()`
 
-High-level APIs accept:
+Keep low-level APIs only when you truly need a custom execution layer.
 
-- `logger`
-- `loggerAdapter`
+## Intentionally Deferred
 
-The package resolves those through `@trebired/logger-adapter`, matching the style used by other `@trebired/*` packages. `createCodeServerSessionManager()` also emits `logPackageInitialized()` on creation.
-
-## `code-server`: Dependency vs Peer Dependency
-
-Use `code-server` as a normal `dependency` when:
-
-- this package is part of an application deployment
-- you want the runtime to own the exact installed `code-server`
-- you want installation resolution to succeed without extra host setup
-
-Use `code-server` as a `peerDependency` in your own higher-level package when:
-
-- your package wraps `@trebired/code-server-kit`
-- the final host application should choose the `code-server` version
-- you want to avoid forcing duplicate `code-server` installs across wrappers
-
-`@trebired/code-server-kit` itself depends on `code-server` because the generic runtime layer needs a predictable package to resolve.
+- non-Linux lifecycle orchestration
+- container runtime wrappers
+- host-specific sandbox policy
+- Windows and macOS service-management behavior
+- a stronger watchdog strategy than preparation plus disabled-fallback classification, unless future `code-server` versions expose a cleaner supported switch

@@ -33,8 +33,10 @@ function createFakeCodeServerPackage(root: string, options: {
   bin?: Record<string, string> | string;
   entryContents?: string | null;
   entryMode?: number;
+  includeBootstrapScript?: boolean;
   entryRelativePath?: string;
   includeSupportRoot?: boolean;
+  includeWatchdog?: boolean;
   main?: string;
   version?: string;
 } = {}): string {
@@ -60,6 +62,32 @@ function createFakeCodeServerPackage(root: string, options: {
 
   if (options.includeSupportRoot !== false) {
     fs.mkdirSync(path.join(packageRoot, "lib", "vscode"), { recursive: true });
+    writeFile(packageRoot, "lib/vscode/package.json", "{\n  \"name\": \"embedded-vscode\"\n}\n");
+    writeFile(packageRoot, "lib/vscode/extensions/package.json", "{\n  \"name\": \"embedded-vscode-extensions\"\n}\n");
+    writeFile(packageRoot, "lib/vscode/out/server-main.js", "export {};\n");
+    if (options.includeWatchdog !== false) {
+      writeFile(packageRoot, "lib/vscode/node_modules/@vscode/native-watchdog/package.json", "{\n  \"name\": \"@vscode/native-watchdog\"\n}\n");
+    }
+  }
+
+  if (options.includeBootstrapScript !== false) {
+    writeFile(
+      packageRoot,
+      "postinstall.sh",
+      [
+        "#!/usr/bin/env sh",
+        "set -eu",
+        "mkdir -p lib/vscode/out",
+        "mkdir -p lib/vscode/extensions",
+        "[ -f lib/vscode/package.json ] || printf '{\"name\":\"embedded-vscode\"}\\n' > lib/vscode/package.json",
+        "[ -f lib/vscode/extensions/package.json ] || printf '{\"name\":\"embedded-vscode-extensions\"}\\n' > lib/vscode/extensions/package.json",
+        "[ -f lib/vscode/out/server-main.js ] || printf 'export {};\\n' > lib/vscode/out/server-main.js",
+        "mkdir -p lib/vscode/node_modules/@vscode/native-watchdog",
+        "[ -f lib/vscode/node_modules/@vscode/native-watchdog/package.json ] || printf '{\"name\":\"@vscode/native-watchdog\"}\\n' > lib/vscode/node_modules/@vscode/native-watchdog/package.json",
+        "",
+      ].join("\n"),
+      0o755,
+    );
   }
 
   return packageRoot;

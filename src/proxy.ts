@@ -1,5 +1,11 @@
 import { CodeServerInvalidConfigurationError } from "./errors.js";
-import type { BuildForwardedHeadersOptions, CodeServerHtmlResponseOptions } from "./types.js";
+import type {
+  BuildCodeServerWebSocketHeadersOptions,
+  BuildForwardedHeadersOptions,
+  ClassifyCodeServerProxyFailureOptions,
+  CodeServerHtmlResponseOptions,
+  CodeServerProxyFailure,
+} from "./types.js";
 
 function buildForwardedHeaders(options: BuildForwardedHeadersOptions): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -32,6 +38,74 @@ function isCodeServerHtmlResponse(options: CodeServerHtmlResponseOptions): boole
 
   const contentType = normalizeContentType(options);
   return contentType.startsWith("text/html") || contentType.startsWith("application/xhtml+xml");
+}
+
+function buildCodeServerWebSocketHeaders(options: BuildCodeServerWebSocketHeadersOptions): Record<string, string> {
+  return {
+    ...buildForwardedHeaders(options),
+    "connection": normalizeOptionalString(options.connection) ?? "Upgrade",
+    "upgrade": normalizeOptionalString(options.upgrade) ?? "websocket",
+  };
+}
+
+function classifyCodeServerProxyFailure(options: ClassifyCodeServerProxyFailureOptions): CodeServerProxyFailure {
+  const errorCode = typeof options.error === "object" && options.error && "code" in options.error
+    ? String(options.error.code)
+    : null;
+  const statusCode = options.statusCode ?? null;
+
+  if (errorCode === "ECONNREFUSED" || statusCode === 502) {
+    return {
+      category: "refused",
+      details: {
+        code: errorCode,
+        statusCode,
+      },
+      message: "The code-server upstream refused the connection.",
+    };
+  }
+
+  if (errorCode === "ECONNRESET") {
+    return {
+      category: "reset",
+      details: {
+        code: errorCode,
+        statusCode,
+      },
+      message: "The code-server upstream reset the connection.",
+    };
+  }
+
+  if (errorCode === "ETIMEDOUT" || statusCode === 504) {
+    return {
+      category: "timeout",
+      details: {
+        code: errorCode,
+        statusCode,
+      },
+      message: "The code-server upstream timed out.",
+    };
+  }
+
+  if (statusCode && statusCode >= 500) {
+    return {
+      category: "upstream_failure",
+      details: {
+        code: errorCode,
+        statusCode,
+      },
+      message: "The code-server upstream returned an error.",
+    };
+  }
+
+  return {
+    category: "unknown",
+    details: {
+      code: errorCode,
+      statusCode,
+    },
+    message: "The code-server upstream request failed.",
+  };
 }
 
 function normalizeTrustedOrigin(value: string): string {
@@ -98,7 +172,9 @@ function normalizeOptionalString(value: unknown): string | null {
 }
 
 export {
+  buildCodeServerWebSocketHeaders,
   buildForwardedHeaders,
+  classifyCodeServerProxyFailure,
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
 };

@@ -4,6 +4,7 @@ type CodeServerKitErrorCode =
   | "invalid_configuration"
   | "launch_planning_failed"
   | "port_allocation_failed"
+  | "preparation_failed"
   | "process_exited_before_ready"
   | "session_lifecycle_failed"
   | "session_reuse_conflict"
@@ -58,6 +59,13 @@ class CodeServerPortAllocationError extends CodeServerKitError {
   constructor(message: string, details: Record<string, unknown> = {}) {
     super("port_allocation_failed", message, details);
     this.name = "CodeServerPortAllocationError";
+  }
+}
+
+class CodeServerPreparationError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("preparation_failed", message, details);
+    this.name = "CodeServerPreparationError";
   }
 }
 
@@ -151,6 +159,7 @@ export {
   CodeServerLaunchPlanningError,
   CodeServerPackageResolutionError,
   CodeServerPortAllocationError,
+  CodeServerPreparationError,
   CodeServerProcessExitedBeforeReadyError,
   CodeServerSessionLifecycleError,
   CodeServerSessionReuseConflictError,

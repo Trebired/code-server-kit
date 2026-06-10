@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildCodeServerWebSocketHeaders,
   CodeServerInvalidConfigurationError,
   buildForwardedHeaders,
+  classifyCodeServerProxyFailure,
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
   normalizeTrustedOrigins,
@@ -51,5 +53,34 @@ describe("@trebired/code-server-kit proxy", () => {
       method: "GET",
       statusCode: 200,
     })).toBe(false);
+  });
+
+  test("builds websocket upgrade headers for proxying code-server", () => {
+    expect(buildCodeServerWebSocketHeaders({
+      forwardedFor: "10.0.0.1",
+      host: "app.example.com",
+      proto: "https",
+    })).toEqual({
+      "connection": "Upgrade",
+      "forwarded": "proto=https;host=app.example.com",
+      "upgrade": "websocket",
+      "x-forwarded-for": "10.0.0.1",
+      "x-forwarded-host": "app.example.com",
+      "x-forwarded-proto": "https",
+    });
+  });
+
+  test("classifies common upstream proxy failures", () => {
+    expect(classifyCodeServerProxyFailure({
+      error: {
+        code: "ECONNREFUSED",
+      },
+    }).category).toBe("refused");
+
+    expect(classifyCodeServerProxyFailure({
+      error: {
+        code: "ETIMEDOUT",
+      },
+    }).category).toBe("timeout");
   });
 });

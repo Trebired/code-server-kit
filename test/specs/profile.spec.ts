@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import {
   createCodeServerProfileSyncPlan,
+  persistCodeServerProfileIfChanged,
+  readCodeServerProfileSignature,
   syncCodeServerProfile,
 } from "../../src/index.js";
 import { exists, readFile, tempDir, writeFile } from "./helpers.js";
@@ -76,5 +78,36 @@ describe("@trebired/code-server-kit profile", () => {
     expect(readFile(targetDir, "User/snippets/app.json")).toContain("\"prefix\"");
     expect(readFile(targetDir, "extensions/demo-extension/package.json")).toContain("\"demo-extension\"");
     expect(exists(targetDir, "User/ignored.json")).toBe(false);
+  });
+
+  test("persists only when the allowlisted profile signature changed", async () => {
+    const sourceDir = tempDir();
+    const targetDir = tempDir();
+
+    writeFile(sourceDir, "User/settings.json", "{\n  \"editor.fontSize\": 14\n}\n");
+    writeFile(targetDir, "User/settings.json", "{\n  \"editor.fontSize\": 14\n}\n");
+
+    const first = await persistCodeServerProfileIfChanged({
+      items: ["settings.json"],
+      sourceDir,
+      targetDir,
+    });
+
+    expect(first.changed).toBe(false);
+
+    writeFile(sourceDir, "User/settings.json", "{\n  \"editor.fontSize\": 16\n}\n");
+
+    const second = await persistCodeServerProfileIfChanged({
+      items: ["settings.json"],
+      sourceDir,
+      targetDir,
+    });
+
+    expect(second.changed).toBe(true);
+    expect(second.previousSignature).not.toBe(second.nextSignature);
+    expect(await readCodeServerProfileSignature({
+      items: ["settings.json"],
+      rootDir: targetDir,
+    })).toBe(second.nextSignature);
   });
 });
