@@ -1,0 +1,58 @@
+{
+  "name": "@trebired/code-server-kit",
+  "version": "0.1.0",
+  "description": "Framework-agnostic code-server launch kit for Node.js apps with installation resolution, launch planning, readiness checks, and process helpers.",
+  "license": "MIT",
+  "keywords": [
+    "code-server",
+    "node",
+    "launcher",
+    "backend",
+    "integration"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Trebired/code-server-kit"
+  },
+  "bugs": {
+    "url": "https://github.com/Trebired/code-server-kit/issues"
+  },
+  "homepage": "https://github.com/Trebired/code-server-kit#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "bun@1.3.12",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "code-server": "^4.117.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.4",
+    "@types/node": "^24.10.1",
+    "typescript": "^6.0.2"
+  }
+}
