@@ -1,0 +1,254 @@
+import { describe, expect, test } from "bun:test";
+
+import {
+  CodeServerInvalidConfigurationError,
+  createCodeServerSessionManager,
+  getCodeServerSessionStatus,
+  startCodeServerSession,
+  stopCodeServerSession,
+} from "../../src/index.js";
+import { createFakeCodeServerPackage, exists, readFile, sleep, tempDir, writeFile } from "./helpers.js";
+
+const LISTENING_ENTRY = `#!/usr/bin/env node
+const fs = require("node:fs");
+const http = require("node:http");
+const path = require("node:path");
+
+function readArg(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+const bindAddr = readArg("--bind-addr") || "127.0.0.1:8080";
+const userDataDir = readArg("--user-data-dir");
+const host = bindAddr.startsWith("[")
+  ? bindAddr.slice(1, bindAddr.indexOf("]"))
+  : bindAddr.slice(0, bindAddr.lastIndexOf(":"));
+const portText = bindAddr.startsWith("[")
+  ? bindAddr.slice(bindAddr.indexOf("]:") + 2)
+  : bindAddr.slice(bindAddr.lastIndexOf(":") + 1);
+const port = Number(portText);
+
+if (userDataDir) {
+  fs.mkdirSync(path.join(userDataDir, "User"), { recursive: true });
+  if (fs.existsSync(path.join(userDataDir, "User", "settings.json"))) {
+    fs.writeFileSync(path.join(userDataDir, "User", "settings.json"), JSON.stringify({ restored: true, runtime: true }, null, 2) + "\\n");
+  }
+  fs.writeFileSync(path.join(userDataDir, "User", "keybindings.json"), "[]\\n");
+}
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end("ok");
+});
+
+server.listen(port, host, () => {
+  process.stdout.write("listening\\n");
+});
+
+function shutdown() {
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+`;
+
+describe("@trebired/code-server-kit session", () => {
+  test("starts a fresh direct session, reports ready status, and stops cleanly", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const manager = createCodeServerSessionManager({
+      resolveFrom: root,
+    });
+    const result = await manager.start({
+      sessionKey: "demo",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.reused).toBe(false);
+    expect(result.status.ready).toBe(true);
+    expect(result.status.state).toBe("ready");
+    expect(exists(stateRoot, "sessions/demo/session.json")).toBe(true);
+    expect(exists(stateRoot, "sessions/demo/diagnostics.json")).toBe(true);
+
+    const status = await manager.getStatus({
+      sessionKey: "demo",
+      stateRoot,
+    });
+
+    expect(status?.ready).toBe(true);
+    expect(status?.pid).toBeGreaterThan(0);
+
+    const stopped = await manager.stop({
+      sessionKey: "demo",
+      stateRoot,
+    });
+
+    expect(stopped?.status.state).toBe("stopped");
+  });
+
+  test("reuses an existing direct session when the normalized spec still matches", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const manager = createCodeServerSessionManager({
+      resolveFrom: root,
+    });
+    const first = await manager.start({
+      sessionKey: "reuse",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+    const second = await manager.start({
+      sessionKey: "reuse",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    expect(second.reused).toBe(true);
+    expect(second.status.state).toBe("reusing_existing");
+    expect(second.status.pid).toBe(first.status.pid);
+
+    await manager.stop({
+      sessionKey: "reuse",
+      stateRoot,
+    });
+  });
+
+  test("marks the prior session stale and restarts when the normalized spec changes", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const manager = createCodeServerSessionManager({
+      resolveFrom: root,
+    });
+    const first = await manager.start({
+      sessionKey: "restart",
+      stateRoot,
+      workspacePath: "/srv/workspaces/one",
+    });
+    const second = await manager.start({
+      sessionKey: "restart",
+      stateRoot,
+      workspacePath: "/srv/workspaces/two",
+    });
+
+    expect(second.reused).toBe(false);
+    expect(second.status.state).toBe("ready");
+    expect(second.status.specHash).not.toBe(first.status.specHash);
+    expect(second.status.pid).not.toBe(first.status.pid);
+
+    await manager.stop({
+      sessionKey: "restart",
+      stateRoot,
+    });
+  });
+
+  test("restores and persists allowlisted profile data during the session lifecycle", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    const restoreFrom = tempDir();
+    const persistTo = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    writeFile(restoreFrom, "User/settings.json", "{\n  \"theme\": \"light\"\n}\n");
+
+    const result = await startCodeServerSession({
+      profile: {
+        items: ["settings.json", "keybindings.json"],
+        persistTo,
+        restoreFrom,
+      },
+      resolveFrom: root,
+      sessionKey: "profile",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    expect(readFile(pathFrom(result.status.userDataDir), "User/settings.json")).toContain("\"runtime\": true");
+
+    await stopCodeServerSession({
+      profile: {
+        items: ["settings.json", "keybindings.json"],
+        persistTo,
+      },
+      sessionKey: "profile",
+      stateRoot,
+    });
+
+    expect(exists(persistTo, "User/settings.json")).toBe(true);
+    expect(exists(persistTo, "User/keybindings.json")).toBe(true);
+    expect(readFile(persistTo, "User/settings.json")).toContain("\"restored\": true");
+  });
+
+  test("requires an explicit scope for systemd lifecycle launches", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    await expect(startCodeServerSession({
+      launchStrategy: "systemd",
+      resolveFrom: root,
+      sessionKey: "systemd-missing-scope",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    })).rejects.toBeInstanceOf(CodeServerInvalidConfigurationError);
+  });
+
+  test("logs package initialization and lifecycle events through logger-adapter wiring", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const events: Array<{ group: string; level: string; message: string }> = [];
+    const manager = createCodeServerSessionManager({
+      logger: events as unknown as Record<string, unknown>,
+      loggerAdapter(logger, event) {
+        (logger as unknown as typeof events).push({
+          group: event.group,
+          level: event.level,
+          message: event.message,
+        });
+      },
+      resolveFrom: root,
+    });
+
+    expect(events.some((event) => event.group.endsWith(".initialize"))).toBe(true);
+
+    await manager.start({
+      sessionKey: "logged",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+    await manager.stop({
+      sessionKey: "logged",
+      stateRoot,
+    });
+
+    expect(events.some((event) => event.group === "session" && event.message.includes("starting"))).toBe(true);
+    expect(events.some((event) => event.group === "session" && event.message.includes("stopping"))).toBe(true);
+  });
+});
+
+function pathFrom(value: string): string {
+  return value;
+}

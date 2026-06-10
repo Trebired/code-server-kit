@@ -5,8 +5,14 @@ type CodeServerKitErrorCode =
   | "launch_planning_failed"
   | "port_allocation_failed"
   | "process_exited_before_ready"
+  | "session_lifecycle_failed"
+  | "session_reuse_conflict"
   | "startup_probe_failed"
-  | "startup_timeout";
+  | "startup_timeout"
+  | "systemd_collision"
+  | "systemd_journal_failed"
+  | "systemd_launch_failed"
+  | "systemd_status_failed";
 
 class CodeServerKitError extends Error {
   code: CodeServerKitErrorCode | string;
@@ -76,6 +82,48 @@ class CodeServerStartupProbeError extends CodeServerKitError {
   }
 }
 
+class CodeServerSessionLifecycleError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("session_lifecycle_failed", message, details);
+    this.name = "CodeServerSessionLifecycleError";
+  }
+}
+
+class CodeServerSessionReuseConflictError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("session_reuse_conflict", message, details);
+    this.name = "CodeServerSessionReuseConflictError";
+  }
+}
+
+class CodeServerSystemdLaunchError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("systemd_launch_failed", message, details);
+    this.name = "CodeServerSystemdLaunchError";
+  }
+}
+
+class CodeServerSystemdCollisionError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("systemd_collision", message, details);
+    this.name = "CodeServerSystemdCollisionError";
+  }
+}
+
+class CodeServerSystemdStatusError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("systemd_status_failed", message, details);
+    this.name = "CodeServerSystemdStatusError";
+  }
+}
+
+class CodeServerSystemdJournalError extends CodeServerKitError {
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super("systemd_journal_failed", message, details);
+    this.name = "CodeServerSystemdJournalError";
+  }
+}
+
 class CodeServerPackageResolutionError extends CodeServerInstallationResolutionError {
   constructor(message: string, details: Record<string, unknown> = {}) {
     super(message, details);
@@ -104,8 +152,14 @@ export {
   CodeServerPackageResolutionError,
   CodeServerPortAllocationError,
   CodeServerProcessExitedBeforeReadyError,
+  CodeServerSessionLifecycleError,
+  CodeServerSessionReuseConflictError,
   CodeServerStartupProbeError,
   CodeServerStartupTimeoutError,
+  CodeServerSystemdCollisionError,
+  CodeServerSystemdJournalError,
+  CodeServerSystemdLaunchError,
+  CodeServerSystemdStatusError,
   isCodeServerKitError,
 };
 export type { CodeServerKitErrorCode };
