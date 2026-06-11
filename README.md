@@ -172,6 +172,7 @@ The lower-level planning APIs still exist for hosts that want custom execution l
 This is the preferred lower-level planning API. It returns:
 
 - final `command` and `args`
+- final `bindings`
 - `cwd` and `env`
 - preparation status
 - support-root bind suggestions
@@ -182,6 +183,8 @@ This is the preferred lower-level planning API. It returns:
 ### `createCodeServerLaunchPlan(options)`
 
 Compatibility-friendly alias for callers that still want the previous naming. It now routes through the richer integration-plan path.
+
+The returned plan already includes final `bindings`, `recommendedReadablePaths`, `recommendedWritablePaths`, and `translatedPaths`, so a host does not need to rebuild support-tree mount decisions itself.
 
 ### `createCodeServerLaunchSpec(plan)`
 
@@ -236,6 +239,9 @@ const started = await sessions.start({
 });
 
 const diagnostics = await sessions.readDiagnostics({
+  sanitizer: {
+    pathPrefixes: ["/srv"],
+  },
   sessionKey: "workspace-42",
   stateRoot: "/srv/code-server-state",
 });

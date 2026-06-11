@@ -78,6 +78,7 @@ describe("@trebired/code-server-kit session", () => {
     expect(result.status.state).toBe("ready");
     expect(exists(stateRoot, "sessions/demo/session.json")).toBe(true);
     expect(exists(stateRoot, "sessions/demo/diagnostics.json")).toBe(true);
+    expect(result.diagnostics?.sanitized).toBeNull();
 
     const status = await manager.getStatus({
       sessionKey: "demo",
@@ -247,6 +248,42 @@ describe("@trebired/code-server-kit session", () => {
 
     expect(events.some((event) => event.group === "session" && event.message.includes("starting"))).toBe(true);
     expect(events.some((event) => event.group === "session" && event.message.includes("stopping"))).toBe(true);
+  });
+
+  test("reads persisted sanitized diagnostics when a sanitizer is provided", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const manager = createCodeServerSessionManager({
+      resolveFrom: root,
+    });
+
+    await manager.start({
+      sanitizer: {
+        pathPrefixes: ["/srv/workspaces/demo"],
+      },
+      sessionKey: "sanitized",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    const diagnostics = await manager.readDiagnostics({
+      sanitizer: {
+        pathPrefixes: ["/srv/workspaces/demo"],
+      },
+      sessionKey: "sanitized",
+      stateRoot,
+    });
+
+    expect(diagnostics?.sanitized).not.toBeUndefined();
+
+    await manager.stop({
+      sessionKey: "sanitized",
+      stateRoot,
+    });
   });
 
   test("rejects conflicting inflight starts for the same session key", async () => {

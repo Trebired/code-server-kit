@@ -59,6 +59,32 @@ describe("@trebired/code-server-kit launch", () => {
         "/srv/workspaces/demo",
       ],
       bindAddr: `127.0.0.1:${plan.port}`,
+      bindings: [
+        {
+          access: "read",
+          hostPath: packageRoot,
+          mountPath: packageRoot,
+          reason: "code-server package root",
+        },
+        {
+          access: "read",
+          hostPath: path.join(packageRoot, "lib/vscode"),
+          mountPath: path.join(packageRoot, "lib/vscode"),
+          reason: "code-server support root",
+        },
+        {
+          access: "write",
+          hostPath: "/tmp/code-server/user-data",
+          mountPath: "/tmp/code-server/user-data",
+          reason: "code-server user data",
+        },
+        {
+          access: "write",
+          hostPath: "/tmp/code-server/extensions",
+          mountPath: "/tmp/code-server/extensions",
+          reason: "code-server extensions",
+        },
+      ],
       codeServerPackageRoot: packageRoot,
       command: process.execPath,
       cwd: "/srv/runtime",
@@ -90,6 +116,7 @@ describe("@trebired/code-server-kit launch", () => {
       workspacePath: "/srv/workspaces/demo",
     });
     expect(plan.preparationStatus.state).toBe("prepared");
+    expect(plan.bindings).toHaveLength(4);
   });
 
   test("derives support bindings and writable path suggestions in the launch spec", async () => {
@@ -104,6 +131,7 @@ describe("@trebired/code-server-kit launch", () => {
     });
     const spec = createCodeServerLaunchSpec(plan);
 
+    expect(plan.bindings).toEqual(spec.bindings);
     expect(spec.readablePaths).toContain(plan.installation.packageRoot);
     expect(spec.writablePaths).toEqual([
       "/tmp/code-server/session-42/user-data",
@@ -175,6 +203,7 @@ describe("@trebired/code-server-kit launch", () => {
           'process.stdout.write("ready\\n"); process.stderr.write("warn\\n");',
         ],
         bindAddr: "127.0.0.1:1",
+        bindings: [],
         codeServerPackageRoot: "/tmp/fake",
         command: process.execPath,
         cwd: process.cwd(),

@@ -83,6 +83,7 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
     },
     async readDiagnostics(input) {
       return await readCodeServerSessionDiagnostics({
+        sanitizer: input.sanitizer,
         sessionKey: input.sessionKey,
         stateRoot: input.stateRoot,
       });
@@ -158,9 +159,18 @@ async function getCodeServerSessionStatus(options: Pick<CodeServerSessionRequest
   }).getStatus(options);
 }
 
-async function readCodeServerSessionDiagnostics(options: Pick<CodeServerSessionRequest, "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null> {
+async function readCodeServerSessionDiagnostics(options: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null> {
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
-  return await readJsonFile<CodeServerSessionDiagnostics>(paths.diagnosticsPath);
+  const diagnostics = await readJsonFile<CodeServerSessionDiagnostics>(paths.diagnosticsPath);
+  if (!diagnostics) {
+    return null;
+  }
+
+  if (options.sanitizer && diagnostics.normalizedFailure) {
+    diagnostics.sanitized = sanitizeCodeServerDiagnostics(diagnostics.normalizedFailure, options.sanitizer);
+  }
+
+  return diagnostics;
 }
 
 async function startCodeServerSessionInternal(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
@@ -394,6 +404,7 @@ async function startCodeServerSessionInner(context: {
     return {
       created: true,
       diagnostics: await readCodeServerSessionDiagnostics({
+        sanitizer: options.sanitizer,
         sessionKey,
         stateRoot,
       }),
@@ -494,6 +505,7 @@ async function stopCodeServerSessionInternal(
 
   return {
     diagnostics: await readCodeServerSessionDiagnostics({
+      sanitizer: options.sanitizer,
       sessionKey: options.sessionKey,
       stateRoot: options.stateRoot,
     }),
@@ -517,6 +529,7 @@ async function probeSessionRecord(
   sanitizer?: CodeServerSanitizerOptions,
 ): Promise<CodeServerSessionStatus> {
   const diagnostics = await readCodeServerSessionDiagnostics({
+    sanitizer,
     sessionKey: record.sessionKey,
     stateRoot: path.dirname(path.dirname(path.dirname(record.userDataDir))),
   });
@@ -728,6 +741,7 @@ async function writeDiagnosticsFile(record: CodeServerSessionRecord, paths: Retu
       : null,
     readyElapsedMs: snapshot?.readyElapsedMs ?? null,
     recordPath: paths.recordPath,
+    sanitized: record.sanitizedDiagnostics ?? null,
     stderrTail: snapshot?.stderrTail,
     stdoutTail: snapshot?.stdoutTail,
     summary: snapshot?.summary ?? {},

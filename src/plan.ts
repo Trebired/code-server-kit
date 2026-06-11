@@ -73,6 +73,12 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
       userDataDir,
       extensionsDir,
     ]);
+    const bindings = buildRecommendedBindings({
+      extensionsDir,
+      installation,
+      recommendedWritablePaths,
+      userDataDir,
+    });
     const translatedPaths = uniquePaths([
       installation.packageRoot,
       installation.supportRoot,
@@ -87,6 +93,7 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
     return {
       args,
       bindAddr: binding.bindAddr,
+      bindings,
       codeServerPackageRoot: installation.packageRoot,
       command,
       cwd,
@@ -172,29 +179,9 @@ function buildCodeServerArgs(options: {
 }
 
 function buildCodeServerLaunchSpec(plan: CodeServerLaunchPlan): CodeServerLaunchSpec {
-  const bindings = uniqueBindings([
-    {
-      access: "read",
-      hostPath: plan.installation.packageRoot,
-      mountPath: plan.installation.packageRoot,
-      reason: "code-server package root",
-    },
-    ...plan.supportBindings,
-    ...plan.recommendedWritablePaths.map((value) => ({
-      access: "write" as const,
-      hostPath: value,
-      mountPath: value,
-      reason: value === plan.userDataDir
-        ? "code-server user data"
-        : value === plan.extensionsDir
-          ? "code-server extensions"
-          : "code-server writable path",
-    })),
-  ]);
-
   return {
     args: [...plan.args],
-    bindings,
+    bindings: [...plan.bindings],
     command: plan.command,
     cwd: plan.cwd,
     env: {
@@ -203,6 +190,33 @@ function buildCodeServerLaunchSpec(plan: CodeServerLaunchPlan): CodeServerLaunch
     readablePaths: [...plan.recommendedReadablePaths],
     writablePaths: [...plan.recommendedWritablePaths],
   };
+}
+
+function buildRecommendedBindings(options: {
+  extensionsDir: string;
+  installation: CodeServerInstallation;
+  recommendedWritablePaths: string[];
+  userDataDir: string;
+}): CodeServerPathBinding[] {
+  return uniqueBindings([
+    {
+      access: "read",
+      hostPath: options.installation.packageRoot,
+      mountPath: options.installation.packageRoot,
+      reason: "code-server package root",
+    },
+    ...options.installation.supportBindings,
+    ...options.recommendedWritablePaths.map((value) => ({
+      access: "write" as const,
+      hostPath: value,
+      mountPath: value,
+      reason: value === options.userDataDir
+        ? "code-server user data"
+        : value === options.extensionsDir
+          ? "code-server extensions"
+          : "code-server writable path",
+    })),
+  ]);
 }
 
 function normalizeTrustedOrigins(value?: string[]): string[] {

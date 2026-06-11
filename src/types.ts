@@ -154,6 +154,7 @@ type CodeServerLaunchOptions = CreateCodeServerLaunchPlanOptions;
 type CodeServerLaunchPlan = {
   args: string[];
   bindAddr: string;
+  bindings: CodeServerPathBinding[];
   codeServerPackageRoot: string;
   command: string;
   cwd: string;
@@ -438,6 +439,7 @@ type CodeServerSessionDiagnostics = {
   normalizedFailure?: CodeServerStartupDiagnostics | null;
   readyElapsedMs?: number | null;
   recordPath: string;
+  sanitized?: CodeServerSanitizedDiagnostics | null;
   stderrTail?: string;
   stdoutTail?: string;
   summary: Record<string, unknown>;
@@ -556,7 +558,7 @@ type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
 
 type CodeServerSessionManager = {
   getStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null>;
-  readDiagnostics(options: Pick<CodeServerSessionRequest, "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null>;
+  readDiagnostics(options: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null>;
   restart(options: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult>;
   start(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult>;
   stop(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
