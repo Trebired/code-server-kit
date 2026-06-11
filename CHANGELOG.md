@@ -4,6 +4,12 @@
 
 - nothing yet
 
+## 1.1.0
+
+- make the bundled `code-server` dependency the default resolution target
+- centralize package-resolution logic so preparation and installation discovery stay consistent
+- add coverage and documentation for single-package host integration without a direct `code-server` dependency
+
 ## 1.0.0
 
 - expand the package from a session helper into a fuller generic `code-server` integration layer

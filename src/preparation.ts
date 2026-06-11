@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 
 import { CodeServerPreparationError } from "./errors.js";
 import { resolveLogger } from "./logging.js";
+import { resolveCodeServerPackageJsonPath } from "./package-resolution.js";
 import type {
   CodeServerPreparationIssue,
   CodeServerPreparationOptions,
@@ -159,27 +159,6 @@ function issue(code: string, message: string, details: Record<string, unknown>):
     details,
     message,
   };
-}
-
-function resolveCodeServerPackageJsonPath(resolveFrom?: string): string {
-  const anchorPath = createResolutionAnchor(resolveFrom);
-  const requireFrom = createRequire(anchorPath);
-  return requireFrom.resolve("code-server/package.json");
-}
-
-function createResolutionAnchor(resolveFrom?: string): string {
-  const resolved = path.resolve(resolveFrom ?? process.cwd());
-
-  try {
-    const stats = fs.statSync(resolved);
-    return stats.isDirectory()
-      ? path.join(resolved, "__code_server_kit__.js")
-      : resolved;
-  } catch {
-    return path.extname(resolved)
-      ? resolved
-      : path.join(resolved, "__code_server_kit__.js");
-  }
 }
 
 async function runBootstrapScript(packageRoot: string, scriptPath: string): Promise<string> {

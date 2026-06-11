@@ -10,6 +10,13 @@ import {
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
 
 describe("@trebired/code-server-kit resolve", () => {
+  test("resolves the bundled code-server dependency by default", () => {
+    const installation = resolveCodeServerInstallation();
+
+    expect(installation.packageRoot.endsWith(`${path.sep}node_modules${path.sep}code-server`)).toBe(true);
+    expect(installation.entryPoint.startsWith(installation.packageRoot)).toBe(true);
+  });
+
   test("resolves the installed package root, entrypoint, support root, and entry relative path", () => {
     const root = tempDir();
     const packageRoot = createFakeCodeServerPackage(root);

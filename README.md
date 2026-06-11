@@ -25,6 +25,8 @@ npm install @trebired/code-server-kit
 
 `code-server` is installed as a normal dependency of this package. A host application only needs a separate direct `code-server` dependency when it intentionally wants to override how resolution happens.
 
+By default, the package resolves and prepares its own bundled `code-server`. A host does not need to pass `resolveFrom` just to make normal session startup work.
+
 ## Preferred Flow
 
 The preferred host integration flow is now:
@@ -65,6 +67,8 @@ await sessions.stop({
   stateRoot: "/srv/code-server-state",
 });
 ```
+
+The host application only needs a separate direct `code-server` dependency for explicit override scenarios, such as testing against a different installation root or intentionally pinning resolution outside `@trebired/code-server-kit`.
 
 ## What The Package Owns
 
@@ -216,6 +220,30 @@ await waitForCodeServerReady({
 });
 ```
 
+### Session Diagnostics
+
+```ts
+const sessions = createCodeServerSessionManager();
+
+const started = await sessions.start({
+  sanitizer: {
+    pathPrefixes: ["/srv"],
+  },
+  sessionKey: "workspace-42",
+  stateRoot: "/srv/code-server-state",
+  trustedOrigins: ["https://app.example.com"],
+  workspacePath: "/srv/workspaces/demo",
+});
+
+const diagnostics = await sessions.readDiagnostics({
+  sessionKey: "workspace-42",
+  stateRoot: "/srv/code-server-state",
+});
+
+console.log(started.status.lastStartSummary);
+console.log(diagnostics?.sanitized?.summary);
+```
+
 ### Systemd
 
 Linux-first transient systemd support is built into the same package and stays explicit.
@@ -237,6 +265,23 @@ Relevant APIs:
 - `scope: "system"`
 
 There is no package default.
+
+```ts
+const sessions = createCodeServerSessionManager();
+
+const started = await sessions.start({
+  launchStrategy: "systemd",
+  sessionKey: "workspace-42",
+  stateRoot: "/srv/code-server-state",
+  systemd: {
+    scope: "user",
+  },
+  trustedOrigins: ["https://app.example.com"],
+  workspacePath: "/srv/workspaces/demo",
+});
+
+console.log(started.status.unitName);
+```
 
 ## Diagnostics And Redaction
 
@@ -300,6 +345,22 @@ Session-manager integration now handles:
 - persistence only when the allowlisted signature changed by default
 - optional extension snapshotting in the signature
 
+```ts
+const sessions = createCodeServerSessionManager();
+
+await sessions.start({
+  profile: {
+    persistTo: "/srv/code-server-profiles/workspace-42",
+    restoreFrom: "/srv/code-server-profiles/workspace-42",
+    snapshotExtensions: true,
+  },
+  sessionKey: "workspace-42",
+  stateRoot: "/srv/code-server-state",
+  trustedOrigins: ["https://app.example.com"],
+  workspacePath: "/srv/workspaces/demo",
+});
+```
+
 ## Proxy Helpers
 
 Generic proxy-facing helpers now include:
@@ -352,6 +413,16 @@ Prefer:
 - `startCodeServerSession()`
 
 Keep low-level APIs only when you truly need a custom execution layer.
+
+## Direct `code-server` Dependency
+
+None by default.
+
+Host applications only need a separate direct `code-server` dependency when they intentionally override resolution behavior, such as:
+
+- testing against a different installation root
+- pinning a different package copy outside `@trebired/code-server-kit`
+- using custom resolution during advanced development workflows
 
 ## Intentionally Deferred
 
