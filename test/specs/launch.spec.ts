@@ -74,6 +74,12 @@ describe("@trebired/code-server-kit launch", () => {
         },
         {
           access: "write",
+          hostPath: "/srv/workspaces/demo",
+          mountPath: "/srv/workspaces/demo",
+          reason: "workspace mount",
+        },
+        {
+          access: "write",
           hostPath: "/tmp/code-server/user-data",
           mountPath: "/tmp/code-server/user-data",
           reason: "code-server user data",
@@ -116,7 +122,9 @@ describe("@trebired/code-server-kit launch", () => {
       workspacePath: "/srv/workspaces/demo",
     });
     expect(plan.preparationStatus.state).toBe("prepared");
-    expect(plan.bindings).toHaveLength(4);
+    expect(plan.readinessStatus.launchable).toBe(true);
+    expect(plan.readonly.mode).toBe("off");
+    expect(plan.bindings).toHaveLength(5);
   });
 
   test("derives support bindings and writable path suggestions in the launch spec", async () => {
@@ -149,6 +157,30 @@ describe("@trebired/code-server-kit launch", () => {
       mountPath: "/tmp/code-server/session-42/user-data",
       reason: "code-server user data",
     });
+    expect(plan.sandbox.ephemeralStateRoot).toBe("/tmp/code-server/session-42");
+  });
+
+  test("plans readonly workspace mounts and sandbox metadata", async () => {
+    const root = tempDir();
+    createFakeCodeServerPackage(root);
+
+    const plan = await createCodeServerLaunchPlan({
+      dataRoot: "/tmp/code-server/readonly-session",
+      readonly: true,
+      resolveFrom: root,
+      stateRoot: "/tmp/code-server-state",
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    expect(plan.readonly.enabled).toBe(true);
+    expect(plan.bindings).toContainEqual({
+      access: "read",
+      hostPath: "/srv/workspaces/demo",
+      mountPath: "/srv/workspaces/demo",
+      reason: "readonly workspace mount",
+    });
+    expect(plan.sandbox.readonly.enabled).toBe(true);
+    expect(plan.sandbox.supportMountTargets).toContain(path.join(plan.installation.packageRoot, "lib/vscode"));
   });
 
   test("can prefer direct launch mode when the resolved entrypoint is executable", async () => {
@@ -229,15 +261,19 @@ describe("@trebired/code-server-kit launch", () => {
           },
           packageRoot: "/tmp/fake",
           preparationStatus: {
+            artifacts: [],
             checkedAt: "",
             issues: [],
+            launchable: true,
             packageRoot: "/tmp/fake",
             postinstallScriptPath: null,
+            readiness: null as any,
             state: "prepared",
             supportRoot: null,
             watchdogIssue: null,
             watchdogMode: "native",
           },
+          readinessStatus: null as any,
           recommendedReadablePaths: ["/tmp/fake"],
           supportBindings: [],
           supportRoot: null,
@@ -246,17 +282,53 @@ describe("@trebired/code-server-kit launch", () => {
         launchMode: "node",
         port: 1,
         preparationStatus: {
+          artifacts: [],
           checkedAt: "",
           issues: [],
+          launchable: true,
           packageRoot: "/tmp/fake",
           postinstallScriptPath: null,
+          readiness: null as any,
           state: "prepared",
           supportRoot: null,
           watchdogIssue: null,
           watchdogMode: "native",
         },
+        readinessStatus: null as any,
+        readonly: {
+          browserGuards: {
+            blockDragAndDrop: false,
+          },
+          enabled: false,
+          mode: "off",
+          settingsPatch: {},
+        },
         recommendedReadablePaths: ["/tmp/fake"],
         recommendedWritablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
+        browser: {
+          policy: {
+            bootstrapTimeoutMs: 20_000,
+            target: "workbench",
+            workbenchSelectors: [".monaco-workbench", ".workbench"],
+          },
+        },
+        sandbox: {
+          bindings: [],
+          collisionSafeName: null,
+          ephemeralStateRoot: null,
+          readablePaths: [],
+          readonly: {
+            browserGuards: {
+              blockDragAndDrop: false,
+            },
+            enabled: false,
+            mode: "off",
+            settingsPatch: {},
+          },
+          sessionRoot: null,
+          supportMountTargets: [],
+          writablePaths: [],
+        },
         supportBindings: [],
         supportRoot: null,
         translatedPaths: [],

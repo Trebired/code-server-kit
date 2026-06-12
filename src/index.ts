@@ -20,10 +20,22 @@ export {
   isCodeServerKitError,
 } from "./errors.js";
 export {
+  browserReadinessPolicy,
+  createBrowserDiagnosticsScript,
+  createHtmlInjectionPlan,
+  createSessionDiagnosticsBridge,
+  parseBrowserDiagnosticEvent,
+} from "./browser.js";
+export {
   collectCodeServerStartupDiagnostics,
   normalizeCodeServerStartupFailure,
   sanitizeCodeServerDiagnostics,
 } from "./diagnostics.js";
+export {
+  explainCodeServerFailure,
+  runCodeServerDoctor,
+  runCodeServerSmokeTest,
+} from "./doctor.js";
 export { launchCodeServerProcess } from "./launch.js";
 export { logPackageInitialized, resolveLogger } from "./logging.js";
 export {
@@ -36,8 +48,12 @@ export {
   normalizeTrustedOrigins,
 } from "./plan.js";
 export {
+  ensureCodeServerLaunchable,
   ensureCodeServerPrepared,
+  getCodeServerReadinessStatus,
   getCodeServerPreparationStatus,
+  repairCodeServerInstall,
+  validateCodeServerInstall,
 } from "./preparation.js";
 export {
   DEFAULT_CODE_SERVER_PROFILE_ITEMS,
@@ -57,13 +73,21 @@ export {
   normalizeTrustedOrigin,
 } from "./proxy.js";
 export { waitForCodeServerReady } from "./readiness.js";
+export {
+  createReadonlySessionPolicy,
+  DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH,
+} from "./readonly.js";
 export { resolveCodeServerInstallation } from "./resolve.js";
 export {
   createCodeServerSessionManager,
   getCodeServerSessionStatus,
+  inspectSessionFailure,
   readCodeServerSessionDiagnostics,
   restartCodeServerSession,
+  reuseSession,
+  startSession,
   startCodeServerSession,
+  stopSession,
   stopCodeServerSession,
 } from "./session.js";
 export {
@@ -90,10 +114,26 @@ export type {
   BuildCodeServerWebSocketHeadersOptions,
   BuildForwardedHeadersOptions,
   ClassifyCodeServerProxyFailureOptions,
+  CodeServerBrowserDiagnosticEvent,
+  CodeServerBrowserDiagnosticLevel,
+  CodeServerBrowserDiagnosticsScriptOptions,
+  CodeServerBrowserDiagnosticType,
+  CodeServerBrowserReadinessPolicy,
   CodeServerDiagnosticCategory,
+  CodeServerDependencyCheck,
+  CodeServerDependencyKind,
+  CodeServerDoctorOptions,
+  CodeServerDoctorResult,
+  CodeServerEnsureLaunchableOptions,
+  CodeServerEnsureLaunchableResult,
   CodeServerEntryKind,
+  CodeServerHtmlInjectionPlan,
+  CodeServerHtmlInjectionStrategy,
   CodeServerHtmlResponseOptions,
+  CodeServerInstallArtifactCheck,
+  CodeServerInstallArtifactKind,
   CodeServerInstallation,
+  CodeServerInstallValidationResult,
   CodeServerIntegrationPlan,
   CodeServerKitGenericLogMethod,
   CodeServerKitLogEvent,
@@ -105,6 +145,7 @@ export type {
   CodeServerLaunchPlan,
   CodeServerLaunchSpec,
   CodeServerLaunchStrategy,
+  CodeServerLifecyclePhase,
   CodeServerPackageManagerHints,
   CodeServerPathAccessMode,
   CodeServerPathBinding,
@@ -129,14 +170,28 @@ export type {
   CodeServerProfileSyncPlan,
   CodeServerProfileSyncResult,
   CodeServerProxyFailure,
+  CodeServerReadinessState,
+  CodeServerReadinessStatus,
+  CodeServerReadinessTarget,
+  CodeServerReadyCheckpoint,
   CodeServerReadyFailure,
   CodeServerReadyFailureProbe,
   CodeServerReadyOptions,
   CodeServerReadyResult,
+  CodeServerReadonlyPolicy,
+  CodeServerReadonlyPolicyMode,
+  CodeServerReadonlyPolicyOptions,
+  CodeServerRepairAction,
+  CodeServerRepairOptions,
+  CodeServerRepairOutcome,
+  CodeServerRepairResult,
   CodeServerRuntimeDependencyIssue,
+  CodeServerSandboxPlan,
   CodeServerSanitizedDiagnostics,
   CodeServerSanitizerOptions,
   CodeServerSessionDiagnostics,
+  CodeServerSessionDiagnosticsBridge,
+  CodeServerSessionDiagnosticsSnapshot,
   CodeServerSessionFailure,
   CodeServerSessionHealth,
   CodeServerSessionManager,
@@ -157,12 +212,17 @@ export type {
   CodeServerSystemdScope,
   CodeServerSystemdStatus,
   CodeServerSystemdStopOptions,
+  CodeServerSmokeTestOptions,
+  CodeServerSmokeTestResult,
   CodeServerStartupDiagnostics,
+  CodeServerSupportBindingSuggestion,
   CodeServerTranslatedPath,
   CodeServerWatchdogMode,
   CollectCodeServerStartupDiagnosticsOptions,
   CreateCodeServerLaunchPlanOptions,
   CreateCodeServerProfileSyncPlanOptions,
+  CreateCodeServerSessionDiagnosticsBridgeOptions,
+  CreateHtmlInjectionPlanOptions,
   LaunchCodeServerProcessOptions,
   NormalizedCodeServerKitLogger,
   NormalizedCodeServerStartupFailure,

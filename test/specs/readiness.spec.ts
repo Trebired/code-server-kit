@@ -6,6 +6,7 @@ import {
   CodeServerProcessExitedBeforeReadyError,
   CodeServerStartupProbeError,
   CodeServerStartupTimeoutError,
+  createSessionDiagnosticsBridge,
   waitForCodeServerReady,
 } from "../../src/index.js";
 import { closeServer, getFreePort, sleep } from "./helpers.js";
@@ -26,6 +27,7 @@ describe("@trebired/code-server-kit readiness", () => {
         host: "127.0.0.1",
         port,
         retryIntervalMs: 25,
+        target: "tcp",
         timeoutMs: 2_000,
       });
 
@@ -51,6 +53,7 @@ describe("@trebired/code-server-kit readiness", () => {
       host: "127.0.0.1",
       port,
       retryIntervalMs: 20,
+      target: "http",
       timeoutMs: 120,
     })).rejects.toBeInstanceOf(CodeServerStartupTimeoutError);
   });
@@ -97,6 +100,7 @@ describe("@trebired/code-server-kit readiness", () => {
       port,
       process: processHandle,
       retryIntervalMs: 20,
+      target: "http",
       timeoutMs: 500,
     })).rejects.toBeInstanceOf(CodeServerProcessExitedBeforeReadyError);
   });
@@ -120,7 +124,74 @@ describe("@trebired/code-server-kit readiness", () => {
       host: "127.0.0.1",
       port,
       retryIntervalMs: 20,
+      target: "http",
       timeoutMs: 400,
     })).rejects.toBeInstanceOf(CodeServerStartupProbeError);
+  });
+
+  test("supports browser-shell readiness through the diagnostics bridge", async () => {
+    const port = await getFreePort();
+    const bridge = createSessionDiagnosticsBridge();
+    const server = net.createServer((socket) => {
+      socket.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok");
+    });
+    server.listen(port, "127.0.0.1");
+
+    setTimeout(() => {
+      bridge.recordEvent({
+        summary: "shell loaded",
+        type: "shell-loaded",
+      });
+    }, 100);
+
+    try {
+      const ready = await waitForCodeServerReady({
+        browser: {
+          bridge,
+        },
+        host: "127.0.0.1",
+        port,
+        retryIntervalMs: 20,
+        target: "browser-shell",
+        timeoutMs: 1_000,
+      });
+
+      expect(ready.target).toBe("browser-shell");
+      expect(ready.checkpoints.some((checkpoint) => checkpoint.target === "http")).toBe(true);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  test("fails workbench readiness when browser bootstrap times out", async () => {
+    const port = await getFreePort();
+    const bridge = createSessionDiagnosticsBridge();
+    const server = net.createServer((socket) => {
+      socket.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok");
+    });
+    server.listen(port, "127.0.0.1");
+
+    setTimeout(() => {
+      bridge.recordEvent({
+        level: "error",
+        summary: "bootstrap timed out",
+        type: "bootstrap-timeout",
+      });
+    }, 80);
+
+    try {
+      await expect(waitForCodeServerReady({
+        browser: {
+          bridge,
+        },
+        host: "127.0.0.1",
+        port,
+        retryIntervalMs: 20,
+        target: "workbench",
+        timeoutMs: 500,
+      })).rejects.toBeInstanceOf(CodeServerStartupProbeError);
+    } finally {
+      await closeServer(server);
+    }
   });
 });

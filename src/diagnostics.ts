@@ -4,7 +4,6 @@ import type {
   CodeServerSanitizedDiagnostics,
   CodeServerSanitizerOptions,
   CodeServerStartupDiagnostics,
-  CodeServerWatchdogMode,
   CollectCodeServerStartupDiagnosticsOptions,
   NormalizedCodeServerStartupFailure,
 } from "./types.js";
@@ -25,11 +24,16 @@ function collectCodeServerStartupDiagnostics(options: CollectCodeServerStartupDi
       : {}),
   };
   const diagnostics: CodeServerStartupDiagnostics = {
+    browserEvents: options.browserEvents ? [...options.browserEvents] : undefined,
     category,
+    checkpoints: options.checkpoints ? [...options.checkpoints] : undefined,
     code: normalized.code ?? category,
     details,
+    hints: options.hints ?? defaultHints(category),
     journalSummary: journalSummary || undefined,
     launchStrategy: options.launchStrategy ?? null,
+    phase: options.phase ?? derivePhase(normalized.code),
+    retryable: options.retryable ?? defaultRetryable(category),
     stderrTail: stderrTail || undefined,
     stdoutTail: stdoutTail || undefined,
     summary: buildSummary(category, normalized.message),
@@ -89,6 +93,8 @@ function deriveCategory(code: string | null): CodeServerDiagnosticCategory {
     case "systemd_status_failed":
     case "systemd_collision":
       return "systemd_unit_failed";
+    case "startup_probe_failed":
+      return "browser_bootstrap_failed";
     default:
       if (code?.includes("watchdog") || code?.includes("dependency")) {
         return "missing_runtime_dependency";
@@ -115,9 +121,54 @@ function buildSummary(category: CodeServerDiagnosticCategory, message: string): 
       return `systemd could not launch the code-server unit. ${message}`;
     case "systemd_unit_failed":
       return `The code-server systemd unit failed during startup. ${message}`;
+    case "browser_bootstrap_failed":
+      return `The browser bootstrap phase failed after the server started. ${message}`;
+    case "workbench_ready_failed":
+      return `The workbench never became usable. ${message}`;
     default:
       return message;
   }
+}
+
+function derivePhase(code: string | null): CodeServerStartupDiagnostics["phase"] {
+  switch (code) {
+    case "entrypoint_resolution_failed":
+    case "installation_resolution_failed":
+      return "resolve";
+    case "invalid_configuration":
+      return "sandbox-plan";
+    case "preparation_failed":
+      return "prepare";
+    case "startup_probe_failed":
+      return "browser-bootstrap";
+    case "startup_timeout":
+      return "http-ready";
+    case "process_exited_before_ready":
+    case "systemd_launch_failed":
+    case "systemd_status_failed":
+    case "systemd_collision":
+      return "launch";
+    default:
+      return "launch";
+  }
+}
+
+function defaultHints(category: CodeServerDiagnosticCategory): string[] {
+  switch (category) {
+    case "missing_runtime_dependency":
+      return ["Repair or reinstall the code-server package before launching another session."];
+    case "preparation_failed":
+      return ["Run install validation and repair so launch-critical artifacts can be restored."];
+    case "browser_bootstrap_failed":
+    case "workbench_ready_failed":
+      return ["Inspect the browser diagnostic events for websocket, resource, CSP, worker, or bootstrap failures."];
+    default:
+      return [];
+  }
+}
+
+function defaultRetryable(category: CodeServerDiagnosticCategory): boolean {
+  return category !== "invalid_configuration";
 }
 
 function createRedactor(options: CodeServerSanitizerOptions): (value: string) => string {

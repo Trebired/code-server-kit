@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { CodeServerBinaryNotFoundError, CodeServerPackageResolutionError } from "./errors.js";
 import { resolveCodeServerPackageJsonPath } from "./package-resolution.js";
-import { getCodeServerPreparationStatus } from "./preparation.js";
+import { getCodeServerPreparationStatus, getCodeServerReadinessStatus } from "./preparation.js";
 import type { CodeServerEntryKind, CodeServerInstallation, ResolveCodeServerInstallationOptions } from "./types.js";
 
 type CodeServerPackageJson = {
@@ -31,6 +31,10 @@ function resolveCodeServerInstallation(
   }
 
   const supportRoot = resolveSupportRoot(packageRoot);
+  const readinessStatus = getCodeServerReadinessStatus({
+    resolveFrom: options.resolveFrom,
+    strictWatchdog: options.strictWatchdog,
+  });
   const preparationStatus = getCodeServerPreparationStatus({
     resolveFrom: options.resolveFrom,
     strictWatchdog: options.strictWatchdog,
@@ -53,6 +57,7 @@ function resolveCodeServerInstallation(
     },
     packageRoot,
     preparationStatus,
+    readinessStatus,
     recommendedReadablePaths: uniquePaths([
       packageRoot,
       entryPoint,

@@ -10,13 +10,13 @@ import {
   isCodeServerKitError,
 } from "./errors.js";
 import {
-  collectCodeServerStartupDiagnostics,
   normalizeCodeServerStartupFailure,
   sanitizeCodeServerDiagnostics,
 } from "./diagnostics.js";
 import { launchCodeServerProcess } from "./launch.js";
 import { logPackageInitialized, resolveLogger } from "./logging.js";
 import { createCodeServerLaunchPlan } from "./plan.js";
+import { createReadonlySessionPolicy } from "./readonly.js";
 import { ensureCodeServerPrepared } from "./preparation.js";
 import {
   persistCodeServerProfileIfChanged,
@@ -25,18 +25,15 @@ import {
 } from "./profile.js";
 import { waitForCodeServerReady } from "./readiness.js";
 import {
-  extractCodeServerSystemdFailure,
   launchCodeServerWithSystemd,
-  readCodeServerSystemdJournal,
   readCodeServerSystemdStatus,
-  restartCodeServerSystemdUnit,
   stopCodeServerSystemdUnit,
   summarizeCodeServerSystemdJournal,
 } from "./systemd.js";
 import type {
   CodeServerProcessHandle,
   CodeServerProfileLifecycleOptions,
-  CodeServerSanitizedDiagnostics,
+  CodeServerReadyResult,
   CodeServerSanitizerOptions,
   CodeServerSessionDiagnostics,
   CodeServerSessionDiagnosticsSnapshot,
@@ -152,6 +149,27 @@ async function restartCodeServerSession(options: CodeServerSessionRequest): Prom
   }).restart(options);
 }
 
+async function startSession(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
+  return await startCodeServerSession(options);
+}
+
+async function stopSession(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
+  signal?: NodeJS.Signals | number;
+}): Promise<CodeServerSessionStopResult | null> {
+  return await stopCodeServerSession(options);
+}
+
+async function reuseSession(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
+  return await startCodeServerSession(options);
+}
+
+async function inspectSessionFailure(
+  options: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">,
+): Promise<CodeServerSessionDiagnostics["normalizedFailure"] | null> {
+  const diagnostics = await readCodeServerSessionDiagnostics(options);
+  return diagnostics?.normalizedFailure ?? null;
+}
+
 async function getCodeServerSessionStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null> {
   return await createCodeServerSessionManager({
     logger: options.logger,
@@ -177,10 +195,13 @@ async function startCodeServerSessionInternal(options: CodeServerSessionRequest)
   const sessionKey = normalizeSessionKey(options.sessionKey);
   const stateRoot = path.resolve(options.stateRoot);
   const requestedSpecHash = hashNormalizedSpec({
+    browser: options.browser?.policy ?? null,
     launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
     env: options.env ?? {},
     host: options.host ?? null,
     port: options.port ?? null,
+    readinessTarget: options.readinessTarget ?? null,
+    readonly: createReadonlySessionPolicy(options.readonly),
     trustedOrigins: options.trustedOrigins ?? [],
     workspacePath: options.workspacePath ?? null,
     profile: normalizeProfileConfig(options.profile),
@@ -214,6 +235,8 @@ async function startCodeServerSessionInternal(options: CodeServerSessionRequest)
         args: launchPlan.args,
         bindAddr: launchPlan.bindAddr,
         command: launchPlan.command,
+        readonly: launchPlan.readonly,
+        readinessTarget: options.readinessTarget ?? null,
         trustedOrigins: launchPlan.trustedOrigins,
         workspacePath: launchPlan.workspacePath,
       },
@@ -255,6 +278,7 @@ async function startCodeServerSessionInner(context: {
   const { existing, launchPlan, options, paths, sessionKey, specHash, stateRoot } = context;
   const log = resolveLogger(options.logger, options.loggerAdapter);
   const launchStrategy = options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY;
+  const readinessTarget = options.readinessTarget ?? (options.browser?.bridge ? "browser-shell" : "http");
   const preparation = options.preparation?.mode === "skip"
     ? launchPlan.preparationStatus
     : (await ensureCodeServerPrepared({
@@ -267,10 +291,13 @@ async function startCodeServerSessionInner(context: {
 
   await mkdirp(paths.sessionDir);
 
-  log.info("session", "starting code-server session", {
+  log.info("launch:planned", "planned code-server session launch", {
     launchStrategy,
+    readinessTarget,
     sessionKey,
     stateRoot,
+    userDataDir: launchPlan.userDataDir,
+    workspacePath: launchPlan.workspacePath,
   });
 
   if (existing) {
@@ -293,6 +320,7 @@ async function startCodeServerSessionInner(context: {
         handle: handles.get(sessionKey) ?? null,
         launchPlan,
         launchStrategy,
+        readiness: null,
         reused: true,
         status: reused,
       };
@@ -304,12 +332,14 @@ async function startCodeServerSessionInner(context: {
   }
 
   await maybeRestoreProfile(options.profile, launchPlan.userDataDir);
+  await maybeSeedReadonlyProfile(launchPlan.userDataDir, launchPlan.readonly);
 
   const baseRecord = createBaseRecord({
     lastStartSummary: null,
     launchPlan,
     launchStrategy,
     preparation,
+    readinessTarget,
     sessionKey,
     specHash,
     watchdogMode,
@@ -323,12 +353,18 @@ async function startCodeServerSessionInner(context: {
   try {
     let handle: CodeServerProcessHandle | null = null;
     let journalTail = "";
+    let readiness: CodeServerReadyResult | null = null;
 
     if (launchStrategy === "direct") {
       handle = await launchCodeServerProcess({
         plan: launchPlan,
       });
       handles.set(sessionKey, handle);
+      log.info("launch:spawned", "spawned code-server process", {
+        args: launchPlan.args,
+        command: launchPlan.command,
+        pid: handle.pid ?? null,
+      });
     } else {
       if (!options.systemd?.scope) {
         throw new CodeServerInvalidConfigurationError(
@@ -348,16 +384,44 @@ async function startCodeServerSessionInner(context: {
         sessionKey,
         unitName: options.systemd.unitName,
       });
+      log.info("launch:spawned", "spawned code-server systemd unit", {
+        scope: options.systemd.scope,
+        unitName: options.systemd.unitName ?? `trebired-code-server-kit-${sessionKey}.service`,
+      });
     }
 
-    const ready = await waitForCodeServerReady({
+    if (readinessTarget === "browser-shell" || readinessTarget === "workbench") {
+      log.info("browser:bootstrap:start", "waiting for browser diagnostics readiness", {
+        readinessTarget,
+        sessionKey,
+      });
+    }
+
+    readiness = await waitForCodeServerReady({
+      browser: {
+        bridge: options.browser?.bridge,
+        timeoutMs: options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+      },
       failureProbe: options.failureProbe,
       host: launchPlan.host,
+      httpUrl: `http://${formatReadyHost(launchPlan.host)}:${launchPlan.port}/`,
       port: launchPlan.port,
       process: handle ?? undefined,
       retryIntervalMs: options.readinessRetryIntervalMs ?? DEFAULT_READY_RETRY_INTERVAL_MS,
+      target: readinessTarget,
       timeoutMs: options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+      websocketUrl: options.websocketUrl,
     });
+
+    for (const checkpoint of readiness.checkpoints) {
+      if (checkpoint.target === "http") {
+        log.info("ready:http", "code-server HTTP shell is ready", checkpoint.details);
+      } else if (checkpoint.target === "websocket") {
+        log.info("ready:websocket", "code-server websocket is ready", checkpoint.details);
+      } else if (checkpoint.target === "workbench") {
+        log.info("ready:workbench", "code-server workbench is ready", checkpoint.details);
+      }
+    }
 
     if (launchStrategy === "systemd" && options.systemd?.scope) {
       journalTail = await summarizeCodeServerSystemdJournal({
@@ -367,30 +431,30 @@ async function startCodeServerSessionInner(context: {
       });
     }
 
-    const normalizedFailure = collectCodeServerStartupDiagnostics({
-      journal: journalTail,
-      launchStrategy,
-      preparationStatus: preparation,
-      process: handle,
-      sanitizer: options.sanitizer,
-      watchdogMode,
-    });
+    await maybeSeedReadonlyProfile(launchPlan.userDataDir, launchPlan.readonly);
+
     const diagnostics = createDiagnosticsSnapshot({
+      browserEvents: options.browser?.bridge?.getEvents() ?? [],
       handle,
       journalTail,
-      normalizedFailure,
-      readyElapsedMs: ready.elapsedMs,
+      normalizedFailure: null,
+      readyElapsedMs: readiness.elapsedMs,
+      summary: {
+        checkpoints: readiness.checkpoints,
+        readinessTarget,
+      },
     });
 
     const record = {
       ...baseRecord,
       diagnostics,
       health: "ready" as const,
-      lastStartSummary: normalizedFailure.summary,
+      lastStartSummary: `Reached ${readinessTarget} readiness.`,
       pid: handle?.pid ?? null,
       preparation,
       readyAt: nowIso(),
-      sanitizedDiagnostics: normalizedFailure.sanitized ?? null,
+      readinessTarget,
+      sanitizedDiagnostics: null,
       startedAt: nowIso(),
       state: "ready" as const,
       systemdScope: options.systemd?.scope ?? null,
@@ -411,11 +475,14 @@ async function startCodeServerSessionInner(context: {
       handle,
       launchPlan,
       launchStrategy,
+      readiness,
       reused: false,
       status: await probeSessionRecord(record, options.sanitizer),
     };
   } catch (error) {
     const normalized = normalizeCodeServerStartupFailure(error, {
+      browserEvents: options.browser?.bridge?.getEvents() ?? [],
+      checkpoints: [],
       launchStrategy,
       preparationStatus: preparation,
       sanitizer: options.sanitizer,
@@ -425,33 +492,38 @@ async function startCodeServerSessionInner(context: {
     const failure = {
       code: normalized.code,
       details: normalized.details,
+      hints: normalized.hints,
       message: normalized.summary,
       name: normalized.name,
+      phase: normalized.phase,
+      retryable: normalized.retryable,
     } satisfies CodeServerSessionFailure;
 
     if (handle) {
-      try {
-        handle.kill("SIGTERM");
-      } catch {
-      }
+      await terminateHandle(handle, "SIGTERM");
       handles.delete(sessionKey);
     }
 
     const record = {
       ...baseRecord,
       diagnostics: createDiagnosticsSnapshot({
+        browserEvents: options.browser?.bridge?.getEvents() ?? [],
         handle,
         journalTail: launchStrategy === "systemd" && options.systemd?.scope && options.systemd.unitName
           ? await safeSystemdSummary(options.systemd.scope, options.systemd.unitName)
           : "",
         normalizedFailure: normalized,
         readyElapsedMs: null,
+        summary: {
+          readinessTarget,
+        },
       }),
       failure,
       health: "failed" as const,
       lastStartSummary: normalized.summary,
       pid: handle?.pid ?? null,
       preparation,
+      readinessTarget,
       sanitizedDiagnostics: normalized.sanitized ?? null,
       startedAt: nowIso(),
       state: "failed" as const,
@@ -462,6 +534,12 @@ async function startCodeServerSessionInner(context: {
 
     await writeSessionRecord(record, paths.recordPath);
     await writeDiagnosticsFile(record, paths);
+
+    log.error(`fail:${normalized.phase}`, normalized.summary, {
+      code: normalized.code,
+      details: normalized.details,
+      retryable: normalized.retryable,
+    });
 
     if (isCodeServerKitError(error)) {
       throw error;
@@ -485,7 +563,7 @@ async function stopCodeServerSessionInternal(
   const record = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
   if (!record) return null;
 
-  log.info("session", "stopping code-server session", {
+  log.info("session:stop", "stopping code-server session", {
     launchStrategy: record.launchStrategy,
     sessionKey: options.sessionKey,
   });
@@ -555,6 +633,7 @@ async function probeSessionRecord(
     preparation: record.preparation ?? null,
     ready,
     readyAt: ready ? record.readyAt : null,
+    readinessTarget: record.readinessTarget ?? null,
     sanitizedDiagnostics,
     sessionKey: record.sessionKey,
     specHash: record.specHash,
@@ -597,7 +676,7 @@ async function stopExistingRuntime(
   loggerAdapter?: CodeServerSessionRequest["loggerAdapter"],
 ): Promise<void> {
   if (record.launchStrategy === "systemd" && record.systemdScope && record.unitName) {
-    await restartCodeServerSystemdUnit({
+    await stopCodeServerSystemdUnit({
       logger,
       loggerAdapter,
       scope: record.systemdScope,
@@ -606,7 +685,7 @@ async function stopExistingRuntime(
   } else {
     const handle = handles.get(record.sessionKey);
     if (handle) {
-      handle.kill(signal ?? "SIGTERM");
+      await terminateHandle(handle, signal ?? "SIGTERM");
       handles.delete(record.sessionKey);
     } else if (record.pid && isPidAlive(record.pid)) {
       process.kill(record.pid, signal ?? "SIGTERM");
@@ -642,6 +721,30 @@ async function maybeRestoreProfile(profile: CodeServerProfileLifecycleOptions | 
   });
 }
 
+async function maybeSeedReadonlyProfile(
+  userDataDir: string,
+  readonly = createReadonlySessionPolicy(false),
+): Promise<void> {
+  if (!readonly.enabled || Object.keys(readonly.settingsPatch).length === 0) {
+    return;
+  }
+
+  const settingsPath = path.join(userDataDir, "User", "settings.json");
+  await mkdirp(path.dirname(settingsPath));
+  let current: Record<string, unknown> = {};
+
+  try {
+    current = JSON.parse(await fs.promises.readFile(settingsPath, "utf8")) as Record<string, unknown>;
+  } catch {
+  }
+
+  const next = {
+    ...current,
+    ...readonly.settingsPatch,
+  };
+  await fs.promises.writeFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+}
+
 async function maybePersistProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
   if (!profile?.persistTo) return;
 
@@ -675,6 +778,7 @@ function createBaseRecord(options: {
   launchPlan: Awaited<ReturnType<typeof createCodeServerLaunchPlan>>;
   launchStrategy: string;
   preparation: Awaited<ReturnType<typeof ensureCodeServerPrepared>>["status"];
+  readinessTarget: CodeServerSessionRecord["readinessTarget"];
   sessionKey: string;
   specHash: string;
   watchdogMode: CodeServerWatchdogMode;
@@ -690,6 +794,7 @@ function createBaseRecord(options: {
     port: options.launchPlan.port,
     preparation: options.preparation,
     readyAt: null,
+    readinessTarget: options.readinessTarget ?? null,
     sanitizedDiagnostics: null,
     sessionKey: options.sessionKey,
     specHash: options.specHash,
@@ -707,23 +812,22 @@ function createBaseRecord(options: {
 }
 
 function createDiagnosticsSnapshot(options: {
+  browserEvents: NonNullable<CodeServerSessionDiagnostics["browserEvents"]>;
   handle: CodeServerProcessHandle | null;
   journalTail: string;
-  normalizedFailure: ReturnType<typeof collectCodeServerStartupDiagnostics>;
+  normalizedFailure: CodeServerSessionDiagnostics["normalizedFailure"];
   readyElapsedMs: number | null;
+  summary: Record<string, unknown>;
 }): CodeServerSessionDiagnosticsSnapshot {
   return {
+    browserEvents: options.browserEvents,
     journalTail: options.journalTail || undefined,
+    normalizedFailure: options.normalizedFailure ?? null,
     pid: options.handle?.pid ?? null,
     readyElapsedMs: options.readyElapsedMs,
     stderrTail: options.handle?.getStderr(),
     stdoutTail: options.handle?.getStdout(),
-    summary: {
-      category: options.normalizedFailure.category,
-      details: options.normalizedFailure.details,
-      summary: options.normalizedFailure.summary,
-      watchdogMode: options.normalizedFailure.watchdogMode,
-    },
+    summary: options.summary,
     updatedAt: nowIso(),
   };
 }
@@ -732,13 +836,10 @@ async function writeDiagnosticsFile(record: CodeServerSessionRecord, paths: Retu
   await mkdirp(path.dirname(paths.diagnosticsPath));
   const snapshot = record.diagnostics;
   const diagnostics: CodeServerSessionDiagnostics = {
+    browserEvents: snapshot?.browserEvents,
     diagnosticsPath: paths.diagnosticsPath,
     journalTail: snapshot?.journalTail,
-    normalizedFailure: snapshot?.summary
-      ? {
-        category: String(snapshot.summary.category ?? "unknown") as CodeServerSessionDiagnostics["normalizedFailure"] extends infer T ? never : never,
-      } as never
-      : null,
+    normalizedFailure: snapshot?.normalizedFailure ?? null,
     readyElapsedMs: snapshot?.readyElapsedMs ?? null,
     recordPath: paths.recordPath,
     sanitized: record.sanitizedDiagnostics ?? null,
@@ -747,17 +848,6 @@ async function writeDiagnosticsFile(record: CodeServerSessionRecord, paths: Retu
     summary: snapshot?.summary ?? {},
     updatedAt: snapshot?.updatedAt ?? nowIso(),
   };
-  if (snapshot?.summary) {
-    const summary = snapshot.summary as Record<string, unknown>;
-    diagnostics.normalizedFailure = {
-      category: String(summary.category ?? "unknown") as any,
-      code: String(summary.category ?? "unknown"),
-      details: (summary.details as Record<string, unknown>) ?? {},
-      launchStrategy: record.launchStrategy,
-      summary: String(summary.summary ?? ""),
-      watchdogMode: record.watchdogMode,
-    };
-  }
   await fs.promises.writeFile(paths.diagnosticsPath, `${JSON.stringify(diagnostics, null, 2)}\n`, "utf8");
 }
 
@@ -871,6 +961,10 @@ function extractHost(bindAddr: string): string {
   return bindAddr.slice(0, bindAddr.lastIndexOf(":"));
 }
 
+function formatReadyHost(host: string): string {
+  return host.includes(":") ? `[${host}]` : host;
+}
+
 async function readJsonFile<T>(filePath: string): Promise<T | null> {
   try {
     const contents = await fs.promises.readFile(filePath, "utf8");
@@ -885,6 +979,24 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 async function mkdirp(dirPath: string): Promise<void> {
   await fs.promises.mkdir(dirPath, { recursive: true });
+}
+
+async function terminateHandle(
+  handle: CodeServerProcessHandle,
+  signal: NodeJS.Signals | number,
+): Promise<void> {
+  try {
+    handle.kill(signal);
+    await Promise.race([
+      handle.exit,
+      sleep(1_000),
+    ]);
+  } catch {
+  }
+}
+
+function sleep(durationMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
 }
 
 function nowIso(): string {
@@ -907,6 +1019,7 @@ function createEmptyStopResult(sessionKey: string): CodeServerSessionStopResult 
       preparation: null,
       ready: false,
       readyAt: null,
+      readinessTarget: null,
       sanitizedDiagnostics: null,
       sessionKey,
       specHash: "",
@@ -927,8 +1040,12 @@ function createEmptyStopResult(sessionKey: string): CodeServerSessionStopResult 
 export {
   createCodeServerSessionManager,
   getCodeServerSessionStatus,
+  inspectSessionFailure,
   readCodeServerSessionDiagnostics,
   restartCodeServerSession,
+  reuseSession,
+  startSession,
   startCodeServerSession,
+  stopSession,
   stopCodeServerSession,
 };

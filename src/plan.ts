@@ -8,7 +8,9 @@ import {
   CodeServerLaunchPlanningError,
   CodeServerPortAllocationError,
 } from "./errors.js";
-import { ensureCodeServerPrepared } from "./preparation.js";
+import { browserReadinessPolicy } from "./browser.js";
+import { ensureCodeServerLaunchable } from "./preparation.js";
+import { createReadonlySessionPolicy } from "./readonly.js";
 import { resolveCodeServerInstallation } from "./resolve.js";
 import type {
   CodeServerInstallation,
@@ -18,6 +20,8 @@ import type {
   CodeServerLaunchMode,
   CodeServerLaunchSpec,
   CodeServerPathBinding,
+  CodeServerReadonlyPolicy,
+  CodeServerSandboxPlan,
   CreateCodeServerLaunchPlanOptions,
 } from "./types.js";
 
@@ -27,7 +31,8 @@ const DIRECT_LAUNCH_ACCESS = fs.constants.X_OK;
 async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPlanOptions): Promise<CodeServerIntegrationPlan> {
   try {
     if (options.preparation?.mode !== "skip") {
-      await ensureCodeServerPrepared({
+      await ensureCodeServerLaunchable({
+        attemptRepair: true,
         resolveFrom: options.resolveFrom,
         strictWatchdog: options.preparation?.strictWatchdog,
       });
@@ -37,6 +42,7 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
       resolveFrom: options.resolveFrom,
       strictWatchdog: options.preparation?.strictWatchdog,
     });
+    const readonly = createReadonlySessionPolicy(options.readonly);
     const launchMode = normalizeLaunchMode(options.launchMode, installation);
     const { extensionsDir, userDataDir } = resolveLaunchDirectories(options);
     const binding = await resolveLaunchBinding(options);
@@ -77,7 +83,17 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
       extensionsDir,
       installation,
       recommendedWritablePaths,
+      readonly,
       userDataDir,
+      workspacePath,
+    });
+    const sandbox = buildSandboxPlan({
+      bindings,
+      dataRoot: options.dataRoot,
+      readonly,
+      stateRoot: options.stateRoot,
+      supportBindings: installation.supportBindings,
+      workspacePath,
     });
     const translatedPaths = uniquePaths([
       installation.packageRoot,
@@ -94,6 +110,9 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
       args,
       bindAddr: binding.bindAddr,
       bindings,
+      browser: {
+        policy: browserReadinessPolicy(options.browser?.policy),
+      },
       codeServerPackageRoot: installation.packageRoot,
       command,
       cwd,
@@ -111,8 +130,11 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
       launchMode,
       port: binding.port,
       preparationStatus: installation.preparationStatus,
+      readinessStatus: installation.readinessStatus,
+      readonly,
       recommendedReadablePaths,
       recommendedWritablePaths,
+      sandbox,
       sandboxVisiblePaths: translatedPaths.map((value) => value.visiblePath),
       supportBindings: [...installation.supportBindings],
       supportRoot: installation.supportRoot,
@@ -196,7 +218,9 @@ function buildRecommendedBindings(options: {
   extensionsDir: string;
   installation: CodeServerInstallation;
   recommendedWritablePaths: string[];
+  readonly: CodeServerReadonlyPolicy;
   userDataDir: string;
+  workspacePath: string | null;
 }): CodeServerPathBinding[] {
   return uniqueBindings([
     {
@@ -206,6 +230,16 @@ function buildRecommendedBindings(options: {
       reason: "code-server package root",
     },
     ...options.installation.supportBindings,
+    ...(options.workspacePath
+      ? [{
+        access: options.readonly.enabled ? "read" as const : "write" as const,
+        hostPath: options.workspacePath,
+        mountPath: options.workspacePath,
+        reason: options.readonly.enabled
+          ? "readonly workspace mount"
+          : "workspace mount",
+      }]
+      : []),
     ...options.recommendedWritablePaths.map((value) => ({
       access: "write" as const,
       hostPath: value,
@@ -217,6 +251,33 @@ function buildRecommendedBindings(options: {
           : "code-server writable path",
     })),
   ]);
+}
+
+function buildSandboxPlan(options: {
+  bindings: CodeServerPathBinding[];
+  dataRoot?: string;
+  readonly: CodeServerReadonlyPolicy;
+  stateRoot?: string;
+  supportBindings: CodeServerPathBinding[];
+  workspacePath: string | null;
+}): CodeServerSandboxPlan {
+  const dataRoot = options.dataRoot ? path.resolve(options.dataRoot) : null;
+  const sessionRoot = options.stateRoot ? path.resolve(options.stateRoot) : dataRoot;
+
+  return {
+    bindings: [...options.bindings],
+    collisionSafeName: sessionRoot ? path.basename(sessionRoot) : null,
+    ephemeralStateRoot: dataRoot,
+    readablePaths: options.bindings
+      .filter((binding) => binding.access === "read")
+      .map((binding) => binding.hostPath),
+    readonly: options.readonly,
+    sessionRoot,
+    supportMountTargets: options.supportBindings.map((binding) => binding.mountPath),
+    writablePaths: options.bindings
+      .filter((binding) => binding.access === "write")
+      .map((binding) => binding.hostPath),
+  };
 }
 
 function normalizeTrustedOrigins(value?: string[]): string[] {

@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-- nothing yet
+## 1.2.0
+
+- add install launchability APIs with `getCodeServerReadinessStatus()`, `validateCodeServerInstall()`, `repairCodeServerInstall()`, and `ensureCodeServerLaunchable()` so hosts can distinguish incomplete installs from truly launchable ones
+- validate more launch-critical `code-server` artifacts, including embedded workbench assets, server entrypoints, and nested runtime dependencies such as `@vscode/ripgrep`
+- add structured repair outcomes with explicit `noop`, `repaired`, `partially_repaired`, and `unrecoverable` states plus per-action metadata
+- extend readiness handling from bare TCP probes to phased `tcp`, `http`, `websocket`, `browser-shell`, and `workbench` targets
+- add browser diagnostics helpers for generated injection scripts, event parsing, HTML injection planning, and bridge-backed readiness waiting
+- expand session lifecycle APIs with `startSession()`, `stopSession()`, `reuseSession()`, and `inspectSessionFailure()` aliases on top of the existing manager flow
+- add readonly planning helpers, default readonly settings patches, sandbox metadata, and readonly workspace binding suggestions
+- add `runCodeServerDoctor()`, `runCodeServerSmokeTest()`, and `explainCodeServerFailure()` for maintainer and CI workflows
+- strengthen persisted diagnostics and logging with normalized phases, retryability, hints, readiness checkpoints, browser events, and phase-based log groups
 
 ## 1.1.0
 

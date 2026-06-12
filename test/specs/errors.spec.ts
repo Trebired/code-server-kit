@@ -17,14 +17,19 @@ describe("@trebired/code-server-kit errors", () => {
     ));
 
     expect(normalized).toEqual({
+      browserEvents: undefined,
       category: "invalid_configuration",
+      checkpoints: undefined,
       code: "invalid_configuration",
       details: {
         field: "trustedOrigins",
       },
+      hints: [],
       isCodeServerKitError: true,
-      name: "CodeServerInvalidConfigurationError",
       launchStrategy: null,
+      name: "CodeServerInvalidConfigurationError",
+      phase: "sandbox-plan",
+      retryable: false,
       summary: "The code-server launch configuration is invalid. bad config",
       watchdogMode: undefined,
     });
@@ -34,12 +39,17 @@ describe("@trebired/code-server-kit errors", () => {
     const normalized = normalizeCodeServerStartupFailure(new Error("boom"));
 
     expect(normalized).toEqual({
+      browserEvents: undefined,
       category: "unknown",
+      checkpoints: undefined,
       code: "unknown",
       details: {},
+      hints: [],
       isCodeServerKitError: false,
       launchStrategy: null,
       name: "Error",
+      phase: "launch",
+      retryable: true,
       summary: "boom",
       watchdogMode: undefined,
     });
