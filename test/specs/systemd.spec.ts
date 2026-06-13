@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildDefaultCodeServerUnitName,
   buildSystemdPathProperties,
+  createCodeServerLaunchSpec,
   createCodeServerLaunchPlan,
   createCodeServerSystemdLaunchCommand,
   extractCodeServerSystemdFailure,
@@ -116,6 +117,30 @@ describe("@trebired/code-server-kit systemd", () => {
 
   test("normalizes a deterministic default unit name", () => {
     expect(buildDefaultCodeServerUnitName("My Session")).toBe("trebired-code-server-kit-my-session.service");
+  });
+
+  test("keeps direct launch specs and systemd launch commands in parity", async () => {
+    const root = tempDir();
+    createFakeCodeServerPackage(root);
+
+    const plan = await createCodeServerLaunchPlan({
+      dataRoot: "/tmp/code-server/runtime",
+      resolveFrom: root,
+      workspacePath: "/srv/workspaces/demo",
+    });
+    const direct = createCodeServerLaunchSpec(plan);
+    const systemd = createCodeServerSystemdLaunchCommand({
+      plan,
+      scope: "user",
+      sessionKey: "parity",
+    });
+
+    expect(direct.command).toBe(plan.command);
+    expect(direct.args).toEqual(plan.args);
+    expect(systemd.args).toContain(plan.command);
+    for (const arg of plan.args) {
+      expect(systemd.args).toContain(arg);
+    }
   });
 
   test("extracts a structured failure summary from systemd journal text", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@trebired/code-server-kit",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Framework-agnostic code-server integration layer for Node.js apps with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "license": "MIT",
   "keywords": [

@@ -1,10 +1,20 @@
+import { createCodeServerBrowserBridge } from "./browser/index.js";
+import { createReadonlyBrowserPolicy } from "./readonly.js";
 import { CodeServerInvalidConfigurationError } from "./errors.js";
 import type {
   BuildCodeServerWebSocketHeadersOptions,
   BuildForwardedHeadersOptions,
   ClassifyCodeServerProxyFailureOptions,
+  CodeServerBrowserBridge,
+  CodeServerBrowserBridgeOptions,
   CodeServerHtmlResponseOptions,
+  CodeServerProxyAdapter,
+  CodeServerProxyAdapterOptions,
   CodeServerProxyFailure,
+  CodeServerProxyResponseClassification,
+  CodeServerProxyResponseOptions,
+  CodeServerProxyResponseResult,
+  CodeServerProxyServiceWorkerOverride,
 } from "./types.js";
 
 function buildForwardedHeaders(options: BuildForwardedHeadersOptions): Record<string, string> {
@@ -108,6 +118,131 @@ function classifyCodeServerProxyFailure(options: ClassifyCodeServerProxyFailureO
   };
 }
 
+function createCodeServerProxyAdapter(options: CodeServerProxyAdapterOptions = {}): CodeServerProxyAdapter {
+  const browserOptions = isBrowserBridge(options.browser)
+    ? undefined
+    : options.browser;
+  const browser = isBrowserBridge(options.browser)
+    ? options.browser
+    : createCodeServerBrowserBridge({
+      ...(browserOptions ?? {}),
+      readonly: options.readonly ?? browserOptions?.readonly,
+    });
+  const readonlyPolicy = createReadonlyBrowserPolicy(options.readonly ?? browser.readonlyPolicy);
+  const profile = options.profile ?? null;
+  const profilePersistTrigger = options.profilePersistTrigger ?? "manual";
+  const serviceWorker = normalizeServiceWorkerOverride(options.serviceWorker);
+
+  return {
+    browser,
+    buildForwardedHeaders,
+    buildWebSocketHeaders: buildCodeServerWebSocketHeaders,
+    classifyFailure: classifyCodeServerProxyFailure,
+    classifyResponse(input) {
+      if (matchesServiceWorkerOverride(input.pathname, serviceWorker)) {
+        return {
+          kind: "service-worker-override",
+          reason: "service worker override route matched",
+          stripBodyHeaders: true,
+        };
+      }
+
+      if (isCodeServerHtmlResponse(input)) {
+        return {
+          kind: "transform",
+          reason: "HTML response requires code-server browser bridge injection",
+          stripBodyHeaders: true,
+        };
+      }
+
+      return {
+        kind: "passthrough",
+        reason: "response can pass through without package-owned mutation",
+        stripBodyHeaders: false,
+      };
+    },
+    async handleResponse(input) {
+      const classification = this.classifyResponse(input);
+      let result: CodeServerProxyResponseResult;
+
+      if (classification.kind === "service-worker-override") {
+        const override = this.maybeOverrideServiceWorker(input.pathname);
+        result = {
+          body: override?.body ?? null,
+          classification,
+          headers: override
+            ? {
+              ...override.headers,
+              "content-type": override.contentType,
+            }
+            : {},
+          statusCode: override?.statusCode ?? input.statusCode ?? 200,
+        };
+      } else if (classification.kind === "transform") {
+        const headers = normalizeResponseHeaders(input.headers);
+        const body = browser.injectHtml({
+          ...options.html,
+          html: input.body ?? "",
+        });
+        result = {
+          body,
+          classification,
+          headers: classification.stripBodyHeaders
+            ? stripTransformHeaders(headers)
+            : headers,
+          statusCode: input.statusCode ?? 200,
+        };
+      } else {
+        result = {
+          body: input.body ?? null,
+          classification,
+          headers: normalizeResponseHeaders(input.headers),
+          statusCode: input.statusCode ?? 200,
+        };
+      }
+
+      if (profile && options.profileRuntimeDir && shouldTriggerProfilePersist(profilePersistTrigger, result.classification.kind)) {
+        await profile.schedulePersistRuntimeProfile(options.profileRuntimeDir);
+      }
+
+      await options.postResponse?.(result);
+      return result;
+    },
+    maybeOverrideServiceWorker(pathname) {
+      if (!matchesServiceWorkerOverride(pathname, serviceWorker) || !serviceWorker) {
+        return null;
+      }
+
+      return {
+        body: serviceWorker.body,
+        contentType: serviceWorker.contentType,
+        headers: {
+          "cache-control": "no-store",
+          ...serviceWorker.headers,
+        },
+        pathname: serviceWorker.pathname,
+        statusCode: serviceWorker.statusCode,
+      };
+    },
+    async persistProfile(runtimeDir) {
+      if (!profile) {
+        return null;
+      }
+
+      const targetDir = runtimeDir ?? options.profileRuntimeDir;
+      if (!targetDir) {
+        return null;
+      }
+
+      return await profile.persistRuntimeProfile(targetDir);
+    },
+    readonlyPolicy,
+    responseRequiresTransform(input) {
+      return this.classifyResponse(input).kind === "transform";
+    },
+  };
+}
+
 function normalizeTrustedOrigin(value: string): string {
   try {
     const origin = new URL(value).origin;
@@ -120,6 +255,84 @@ function normalizeTrustedOrigin(value: string): string {
       value,
     });
   }
+}
+
+function normalizeResponseHeaders(headers?: Headers | Record<string, unknown>): Record<string, string> {
+  if (!headers) {
+    return {};
+  }
+
+  if (typeof Headers !== "undefined" && headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      normalized[key.toLowerCase()] = String(value[0] ?? "");
+    } else if (value != null) {
+      normalized[key.toLowerCase()] = String(value);
+    }
+  }
+  return normalized;
+}
+
+function stripTransformHeaders(headers: Record<string, string>): Record<string, string> {
+  const next = { ...headers };
+  delete next["content-encoding"];
+  delete next["content-length"];
+  delete next["etag"];
+  delete next["transfer-encoding"];
+  return next;
+}
+
+function normalizeServiceWorkerOverride(
+  options: CodeServerProxyAdapterOptions["serviceWorker"],
+): CodeServerProxyServiceWorkerOverride | null {
+  if (!options || options.mode === "passthrough") {
+    return null;
+  }
+
+  return {
+    body: options.body ?? DEFAULT_NEUTRALIZED_SERVICE_WORKER,
+    contentType: options.contentType ?? "application/javascript; charset=utf-8",
+    headers: {
+      ...(options.headers ?? {}),
+    },
+    pathname: normalizeServiceWorkerPathname(options.pathname),
+    statusCode: options.statusCode ?? 200,
+  };
+}
+
+function normalizeServiceWorkerPathname(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return "/service-worker.js";
+  }
+  return normalized.startsWith("/") ? normalized : `/${normalized}`;
+}
+
+function matchesServiceWorkerOverride(
+  pathname: string | null | undefined,
+  override: CodeServerProxyServiceWorkerOverride | null,
+): boolean {
+  return Boolean(override && pathname && pathname === override.pathname);
+}
+
+function shouldTriggerProfilePersist(
+  trigger: CodeServerProxyAdapterOptions["profilePersistTrigger"] | undefined,
+  kind: CodeServerProxyResponseClassification["kind"],
+): boolean {
+  return trigger === "every-response" || (trigger === "transformed-html" && kind === "transform");
+}
+
+function isBrowserBridge(
+  value?: CodeServerBrowserBridge | CodeServerBrowserBridgeOptions,
+): value is CodeServerBrowserBridge {
+  return Boolean(value)
+    && typeof value === "object"
+    && "injectHtml" in value
+    && typeof value.injectHtml === "function";
 }
 
 function normalizeContentType(options: CodeServerHtmlResponseOptions): string {
@@ -172,9 +385,16 @@ function normalizeOptionalString(value: unknown): string | null {
 }
 
 export {
+  createCodeServerProxyAdapter,
   buildCodeServerWebSocketHeaders,
   buildForwardedHeaders,
   classifyCodeServerProxyFailure,
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
 };
+
+const DEFAULT_NEUTRALIZED_SERVICE_WORKER = [
+  "self.addEventListener('install',function(event){self.skipWaiting();});",
+  "self.addEventListener('activate',function(event){event.waitUntil(self.clients.claim());});",
+  "self.addEventListener('fetch',function(){});",
+].join("");

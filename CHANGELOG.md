@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- expand browser integration into higher-level `createCodeServerBrowserIntegration()`, `transformCodeServerHtml()`, `createBrowserDiagnosticsTransport()`, and `createCodeServerEmbedController()` APIs so hosts can delete more custom `code-server` frontend glue
+- add richer browser diagnostics coverage for websocket lifecycle, iframe state, worker failures, asset 404s, MIME mismatches, theme sync, readonly guard blocks, and frontend stall classification
+- add browser-side readonly policy normalization and action blocking helpers with shared command, shortcut, selector, upload, and drag/drop rules
+- add browser diagnostics summaries and classified failure helpers for safer logging and more actionable readiness failures
+- strengthen README guidance with browser integration, iframe embedding, diagnostics transport, CSP injection, common failure modes, and migration notes
+
 ## 1.2.0
 
 - add install launchability APIs with `getCodeServerReadinessStatus()`, `validateCodeServerInstall()`, `repairCodeServerInstall()`, and `ensureCodeServerLaunchable()` so hosts can distinguish incomplete installs from truly launchable ones

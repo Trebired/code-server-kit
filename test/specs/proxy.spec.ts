@@ -5,6 +5,7 @@ import {
   CodeServerInvalidConfigurationError,
   buildForwardedHeaders,
   classifyCodeServerProxyFailure,
+  createCodeServerProxyAdapter,
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
   normalizeTrustedOrigins,
@@ -82,5 +83,70 @@ describe("@trebired/code-server-kit proxy", () => {
         code: "ETIMEDOUT",
       },
     }).category).toBe("timeout");
+  });
+
+  test("owns HTML transform vs passthrough proxy response branching", async () => {
+    const proxy = createCodeServerProxyAdapter({
+      browser: {
+        diagnostics: {
+          bridgeProperty: "__bridge__",
+        },
+      },
+      readonly: {
+        enabled: true,
+        mode: "view",
+      },
+    });
+
+    const transformed = await proxy.handleResponse({
+      body: "<html><head></head><body></body></html>",
+      headers: {
+        "content-encoding": "gzip",
+        "content-length": "123",
+        "content-type": "text/html; charset=utf-8",
+      },
+      method: "GET",
+      pathname: "/",
+      statusCode: 200,
+    });
+    const passthrough = await proxy.handleResponse({
+      body: "{\"ok\":true}",
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "GET",
+      pathname: "/healthz",
+      statusCode: 200,
+    });
+
+    expect(transformed.classification.kind).toBe("transform");
+    expect(transformed.body).toContain("__bridge__");
+    expect(transformed.headers["content-encoding"]).toBeUndefined();
+    expect(transformed.headers["content-length"]).toBeUndefined();
+    expect(passthrough.classification.kind).toBe("passthrough");
+    expect(passthrough.body).toBe("{\"ok\":true}");
+  });
+
+  test("can neutralize a service worker route through the proxy adapter", async () => {
+    const proxy = createCodeServerProxyAdapter({
+      serviceWorker: {
+        mode: "neutralize",
+        pathname: "/service-worker.js",
+      },
+    });
+
+    const overridden = await proxy.handleResponse({
+      body: "original",
+      headers: {
+        "content-type": "application/javascript",
+      },
+      method: "GET",
+      pathname: "/service-worker.js",
+      statusCode: 200,
+    });
+
+    expect(overridden.classification.kind).toBe("service-worker-override");
+    expect(overridden.body).toContain("self.skipWaiting");
+    expect(overridden.headers["content-type"]).toContain("application/javascript");
   });
 });

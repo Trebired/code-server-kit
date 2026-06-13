@@ -298,7 +298,16 @@ describe("@trebired/code-server-kit launch", () => {
         readonly: {
           browserGuards: {
             blockDragAndDrop: false,
+            blockUpload: false,
+            blockedSelectors: [],
+            blockedUiLabels: [],
+            readonlyMessage: "This is a readonly session.",
+            showBanner: false,
           },
+          blockedCommandIds: [],
+          blockedCommandPrefixes: [],
+          blockedCommandSubstrings: [],
+          blockedShortcuts: [],
           enabled: false,
           mode: "off",
           settingsPatch: {},
@@ -320,7 +329,16 @@ describe("@trebired/code-server-kit launch", () => {
           readonly: {
             browserGuards: {
               blockDragAndDrop: false,
+              blockUpload: false,
+              blockedSelectors: [],
+              blockedUiLabels: [],
+              readonlyMessage: "This is a readonly session.",
+              showBanner: false,
             },
+            blockedCommandIds: [],
+            blockedCommandPrefixes: [],
+            blockedCommandSubstrings: [],
+            blockedShortcuts: [],
             enabled: false,
             mode: "off",
             settingsPatch: {},

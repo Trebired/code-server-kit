@@ -13,16 +13,13 @@ import {
   normalizeCodeServerStartupFailure,
   sanitizeCodeServerDiagnostics,
 } from "./diagnostics.js";
+import { summarizeCodeServerBrowserDiagnostics } from "./browser/index.js";
 import { launchCodeServerProcess } from "./launch.js";
 import { logPackageInitialized, resolveLogger } from "./logging.js";
 import { createCodeServerLaunchPlan } from "./plan.js";
+import { createCodeServerProfilePolicy } from "./profile-policy.js";
 import { createReadonlySessionPolicy } from "./readonly.js";
 import { ensureCodeServerPrepared } from "./preparation.js";
-import {
-  persistCodeServerProfileIfChanged,
-  readCodeServerProfileSnapshot,
-  syncCodeServerProfile,
-} from "./profile.js";
 import { waitForCodeServerReady } from "./readiness.js";
 import {
   launchCodeServerWithSystemd,
@@ -33,10 +30,13 @@ import {
 import type {
   CodeServerProcessHandle,
   CodeServerProfileLifecycleOptions,
+  CodeServerProfilePolicy,
   CodeServerReadyResult,
   CodeServerSanitizerOptions,
+  CodeServerSessionBackendCheckpoint,
   CodeServerSessionDiagnostics,
   CodeServerSessionDiagnosticsSnapshot,
+  CodeServerSessionBrowserOptions,
   CodeServerSessionFailure,
   CodeServerSessionHealth,
   CodeServerSessionManager,
@@ -104,9 +104,12 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
     async start(input) {
       return await startCodeServerSessionInternal({
         ...input,
+        browser: mergeSessionBrowserOptions(options.browser, input.browser),
         installation: input.installation ?? options.installation,
         logger: input.logger ?? options.logger,
         loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        profile: input.profile ?? options.profile,
+        readonly: input.readonly ?? options.readonly,
         resolveFrom: input.resolveFrom ?? options.resolveFrom,
       });
     },
@@ -115,6 +118,7 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
         ...input,
         logger: input.logger ?? options.logger,
         loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        profile: input.profile ?? options.profile,
       });
     },
   };
@@ -122,9 +126,12 @@ function createCodeServerSessionManager(options: CodeServerSessionManagerOptions
 
 async function startCodeServerSession(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
   const manager = createCodeServerSessionManager({
+    browser: options.browser,
     installation: options.installation,
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
+    profile: options.profile,
+    readonly: options.readonly,
     resolveFrom: options.resolveFrom,
   });
 
@@ -137,14 +144,18 @@ async function stopCodeServerSession(options: Pick<CodeServerSessionRequest, "lo
   return await createCodeServerSessionManager({
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
+    profile: options.profile,
   }).stop(options);
 }
 
 async function restartCodeServerSession(options: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult> {
   return await createCodeServerSessionManager({
+    browser: options.browser,
     installation: options.installation,
     logger: options.logger,
     loggerAdapter: options.loggerAdapter,
+    profile: options.profile,
+    readonly: options.readonly,
     resolveFrom: options.resolveFrom,
   }).restart(options);
 }
@@ -194,14 +205,16 @@ async function readCodeServerSessionDiagnostics(options: Pick<CodeServerSessionR
 async function startCodeServerSessionInternal(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult> {
   const sessionKey = normalizeSessionKey(options.sessionKey);
   const stateRoot = path.resolve(options.stateRoot);
+  const readonlyPolicy = createReadonlySessionPolicy(options.readonly);
+  const browserOptions = normalizeSessionBrowserOptions(options.browser);
   const requestedSpecHash = hashNormalizedSpec({
-    browser: options.browser?.policy ?? null,
+    browser: browserOptions?.policy ?? null,
     launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
     env: options.env ?? {},
     host: options.host ?? null,
     port: options.port ?? null,
     readinessTarget: options.readinessTarget ?? null,
-    readonly: createReadonlySessionPolicy(options.readonly),
+    readonly: readonlyPolicy,
     trustedOrigins: options.trustedOrigins ?? [],
     workspacePath: options.workspacePath ?? null,
     profile: normalizeProfileConfig(options.profile),
@@ -225,6 +238,7 @@ async function startCodeServerSessionInternal(options: CodeServerSessionRequest)
     const existingHost = existing ? extractHost(existing.bindAddr) : undefined;
     const launchPlan = await createCodeServerLaunchPlan({
       ...options,
+      browser: browserOptions ?? undefined,
       host: options.bindAddr ? undefined : (options.host ?? existingHost),
       port: options.bindAddr ? undefined : (options.port ?? existing?.port),
       dataRoot: options.dataRoot ?? path.join(paths.sessionDir, "runtime"),
@@ -278,7 +292,9 @@ async function startCodeServerSessionInner(context: {
   const { existing, launchPlan, options, paths, sessionKey, specHash, stateRoot } = context;
   const log = resolveLogger(options.logger, options.loggerAdapter);
   const launchStrategy = options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY;
-  const readinessTarget = options.readinessTarget ?? (options.browser?.bridge ? "browser-shell" : "http");
+  const browser = normalizeSessionBrowserOptions(options.browser);
+  const browserBridge = browser?.bridge;
+  const readinessTarget = options.readinessTarget ?? (browserBridge ? "browser-shell" : "http");
   const preparation = options.preparation?.mode === "skip"
     ? launchPlan.preparationStatus
     : (await ensureCodeServerPrepared({
@@ -288,10 +304,23 @@ async function startCodeServerSessionInner(context: {
       strictWatchdog: options.preparation?.strictWatchdog,
     })).status;
   const watchdogMode = preparation.watchdogMode;
+  const profilePolicy = resolveProfilePolicy(options.profile, launchPlan.readonly);
+  const backendCheckpoints: CodeServerSessionBackendCheckpoint[] = [];
+  const correlationId = createSessionCorrelationId(sessionKey, specHash);
 
   await mkdirp(paths.sessionDir);
+  pushBackendCheckpoint(backendCheckpoints, "session", "planned code-server session launch", {
+    correlationId,
+    launchStrategy,
+    readinessTarget,
+    sessionKey,
+    stateRoot,
+    userDataDir: launchPlan.userDataDir,
+    workspacePath: launchPlan.workspacePath,
+  });
 
   log.info("launch:planned", "planned code-server session launch", {
+    correlationId,
     launchStrategy,
     readinessTarget,
     sessionKey,
@@ -309,7 +338,10 @@ async function startCodeServerSessionInner(context: {
       };
       await writeSessionRecord({
         ...existing,
+        browserSummary: summarizeCodeServerBrowserDiagnostics(browserBridge?.getEvents() ?? existing.diagnostics?.browserEvents ?? []),
+        correlationId,
         health: "ready",
+        metadata: options.metadata ?? existing.metadata ?? null,
         preparation,
         state: "reusing_existing",
         updatedAt: nowIso(),
@@ -327,17 +359,28 @@ async function startCodeServerSessionInner(context: {
     }
 
     if (isLiveOrStartingState(status.state)) {
-      await stopExistingRuntime(existing, options.profile, undefined, options.logger, options.loggerAdapter);
+      await stopExistingRuntime(existing, profilePolicy, undefined, options.logger, options.loggerAdapter);
     }
   }
 
-  await maybeRestoreProfile(options.profile, launchPlan.userDataDir);
-  await maybeSeedReadonlyProfile(launchPlan.userDataDir, launchPlan.readonly);
+  if (profilePolicy) {
+    const preparedProfile = await profilePolicy.prepareRuntimeProfile(launchPlan.userDataDir);
+    pushBackendCheckpoint(backendCheckpoints, "profile", "prepared runtime profile", {
+      persistTarget: preparedProfile.persistTarget,
+      restored: preparedProfile.restore.restored,
+      runtimeDir: preparedProfile.runtimeDir,
+      settingsPatched: preparedProfile.restore.settingsPatched,
+      skippedRestore: preparedProfile.restore.skipped,
+    });
+  }
 
   const baseRecord = createBaseRecord({
+    browserSummary: summarizeCodeServerBrowserDiagnostics(browserBridge?.getEvents() ?? []),
+    correlationId,
     lastStartSummary: null,
     launchPlan,
     launchStrategy,
+    metadata: options.metadata ?? null,
     preparation,
     readinessTarget,
     sessionKey,
@@ -360,6 +403,11 @@ async function startCodeServerSessionInner(context: {
         plan: launchPlan,
       });
       handles.set(sessionKey, handle);
+      pushBackendCheckpoint(backendCheckpoints, "launch", "spawned direct code-server process", {
+        args: launchPlan.args,
+        command: launchPlan.command,
+        pid: handle.pid ?? null,
+      });
       log.info("launch:spawned", "spawned code-server process", {
         args: launchPlan.args,
         command: launchPlan.command,
@@ -384,6 +432,10 @@ async function startCodeServerSessionInner(context: {
         sessionKey,
         unitName: options.systemd.unitName,
       });
+      pushBackendCheckpoint(backendCheckpoints, "launch", "spawned code-server systemd unit", {
+        scope: options.systemd.scope,
+        unitName: options.systemd.unitName ?? `trebired-code-server-kit-${sessionKey}.service`,
+      });
       log.info("launch:spawned", "spawned code-server systemd unit", {
         scope: options.systemd.scope,
         unitName: options.systemd.unitName ?? `trebired-code-server-kit-${sessionKey}.service`,
@@ -399,7 +451,7 @@ async function startCodeServerSessionInner(context: {
 
     readiness = await waitForCodeServerReady({
       browser: {
-        bridge: options.browser?.bridge,
+        bridge: browserBridge,
         timeoutMs: options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
       },
       failureProbe: options.failureProbe,
@@ -414,6 +466,7 @@ async function startCodeServerSessionInner(context: {
     });
 
     for (const checkpoint of readiness.checkpoints) {
+      pushBackendCheckpoint(backendCheckpoints, checkpoint.phase, `reached ${checkpoint.target} readiness`, checkpoint.details);
       if (checkpoint.target === "http") {
         log.info("ready:http", "code-server HTTP shell is ready", checkpoint.details);
       } else if (checkpoint.target === "websocket") {
@@ -431,25 +484,47 @@ async function startCodeServerSessionInner(context: {
       });
     }
 
-    await maybeSeedReadonlyProfile(launchPlan.userDataDir, launchPlan.readonly);
+    if (profilePolicy) {
+      const finalizedProfile = await profilePolicy.restoreRuntimeProfile(launchPlan.userDataDir);
+      if (finalizedProfile.settingsPatched) {
+        pushBackendCheckpoint(backendCheckpoints, "profile", "reapplied runtime profile settings after launch", {
+          restored: finalizedProfile.restored,
+          runtimeDir: finalizedProfile.runtimeDir,
+          settingsPatched: finalizedProfile.settingsPatched,
+          skippedRestore: finalizedProfile.skipped,
+        });
+      }
+    }
+    const browserEvents = browserBridge?.getEvents() ?? [];
+    const browserSummary = summarizeCodeServerBrowserDiagnostics(browserEvents);
 
     const diagnostics = createDiagnosticsSnapshot({
-      browserEvents: options.browser?.bridge?.getEvents() ?? [],
+      backendCheckpoints,
+      browserEvents,
+      browserSummary,
+      correlationId,
       handle,
       journalTail,
       normalizedFailure: null,
       readyElapsedMs: readiness.elapsedMs,
       summary: {
+        browserSummary,
         checkpoints: readiness.checkpoints,
+        correlationId,
+        launchStrategy,
+        profile: profilePolicy?.describe() ?? null,
         readinessTarget,
       },
     });
 
     const record = {
       ...baseRecord,
+      browserSummary,
+      correlationId,
       diagnostics,
       health: "ready" as const,
       lastStartSummary: `Reached ${readinessTarget} readiness.`,
+      metadata: options.metadata ?? null,
       pid: handle?.pid ?? null,
       preparation,
       readyAt: nowIso(),
@@ -481,7 +556,7 @@ async function startCodeServerSessionInner(context: {
     };
   } catch (error) {
     const normalized = normalizeCodeServerStartupFailure(error, {
-      browserEvents: options.browser?.bridge?.getEvents() ?? [],
+      browserEvents: browserBridge?.getEvents() ?? [],
       checkpoints: [],
       launchStrategy,
       preparationStatus: preparation,
@@ -506,8 +581,13 @@ async function startCodeServerSessionInner(context: {
 
     const record = {
       ...baseRecord,
+      browserSummary: summarizeCodeServerBrowserDiagnostics(browserBridge?.getEvents() ?? []),
+      correlationId,
       diagnostics: createDiagnosticsSnapshot({
-        browserEvents: options.browser?.bridge?.getEvents() ?? [],
+        backendCheckpoints,
+        browserEvents: browserBridge?.getEvents() ?? [],
+        browserSummary: summarizeCodeServerBrowserDiagnostics(browserBridge?.getEvents() ?? []),
+        correlationId,
         handle,
         journalTail: launchStrategy === "systemd" && options.systemd?.scope && options.systemd.unitName
           ? await safeSystemdSummary(options.systemd.scope, options.systemd.unitName)
@@ -515,6 +595,9 @@ async function startCodeServerSessionInner(context: {
         normalizedFailure: normalized,
         readyElapsedMs: null,
         summary: {
+          correlationId,
+          launchStrategy,
+          profile: profilePolicy?.describe() ?? null,
           readinessTarget,
         },
       }),
@@ -568,7 +651,13 @@ async function stopCodeServerSessionInternal(
     sessionKey: options.sessionKey,
   });
 
-  await stopExistingRuntime(record, options.profile, options.signal, options.logger, options.loggerAdapter);
+  await stopExistingRuntime(
+    record,
+    resolveProfilePolicy(options.profile, createReadonlySessionPolicy(false)),
+    options.signal,
+    options.logger,
+    options.loggerAdapter,
+  );
   const stoppedRecord = {
     ...record,
     health: "stopped" as const,
@@ -620,12 +709,15 @@ async function probeSessionRecord(
 
   return {
     bindAddr: record.bindAddr,
+    browserSummary: record.browserSummary ?? null,
+    correlationId: record.correlationId ?? null,
     diagnostics,
     extensionsDir: record.extensionsDir,
     failure: record.failure ?? null,
     health: ready ? "ready" : record.health,
     lastStartSummary: record.lastStartSummary ?? null,
     launchStrategy: record.launchStrategy,
+    metadata: record.metadata ?? null,
     pid: record.launchStrategy === "direct"
       ? handles.get(record.sessionKey)?.pid ?? record.pid
       : record.pid,
@@ -670,7 +762,7 @@ async function probeDirectReady(record: CodeServerSessionRecord): Promise<boolea
 
 async function stopExistingRuntime(
   record: CodeServerSessionRecord,
-  profile: CodeServerProfileLifecycleOptions | undefined,
+  profile: CodeServerProfilePolicy | null,
   signal: NodeJS.Signals | number | undefined,
   logger?: CodeServerSessionRequest["logger"],
   loggerAdapter?: CodeServerSessionRequest["loggerAdapter"],
@@ -692,91 +784,16 @@ async function stopExistingRuntime(
     }
   }
 
-  await maybePersistProfile(profile, record.userDataDir);
-}
-
-async function maybeRestoreProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
-  if (!profile?.restoreFrom) return;
-
-  const restorePolicy = profile.restorePolicy ?? "if-missing-or-empty";
-  if (restorePolicy === "if-missing-or-empty") {
-    const snapshot = await readCodeServerProfileSnapshot({
-      items: profile.items,
-      pathMap: profile.pathMap,
-      rootDir: userDataDir,
-      snapshotExtensions: profile.snapshotExtensions,
-    });
-    if (snapshot.entries.some((entry) => entry.present)) {
-      return;
-    }
-  }
-
-  await syncCodeServerProfile({
-    items: profile.items,
-    pathMap: profile.pathMap,
-    skipMissing: profile.skipMissing,
-    skipUnreadable: profile.skipUnreadable,
-    sourceDir: profile.restoreFrom,
-    targetDir: userDataDir,
-  });
-}
-
-async function maybeSeedReadonlyProfile(
-  userDataDir: string,
-  readonly = createReadonlySessionPolicy(false),
-): Promise<void> {
-  if (!readonly.enabled || Object.keys(readonly.settingsPatch).length === 0) {
-    return;
-  }
-
-  const settingsPath = path.join(userDataDir, "User", "settings.json");
-  await mkdirp(path.dirname(settingsPath));
-  let current: Record<string, unknown> = {};
-
-  try {
-    current = JSON.parse(await fs.promises.readFile(settingsPath, "utf8")) as Record<string, unknown>;
-  } catch {
-  }
-
-  const next = {
-    ...current,
-    ...readonly.settingsPatch,
-  };
-  await fs.promises.writeFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-}
-
-async function maybePersistProfile(profile: CodeServerProfileLifecycleOptions | undefined, userDataDir: string): Promise<void> {
-  if (!profile?.persistTo) return;
-
-  const persistPolicy = profile.persistPolicy ?? "if-changed";
-  if (persistPolicy === "always") {
-    await syncCodeServerProfile({
-      items: profile.items,
-      pathMap: profile.pathMap,
-      skipMissing: profile.skipMissing,
-      skipUnreadable: profile.skipUnreadable,
-      sourceDir: userDataDir,
-      targetDir: profile.persistTo,
-    });
-    return;
-  }
-
-  await persistCodeServerProfileIfChanged({
-    items: profile.items,
-    pathMap: profile.pathMap,
-    signatureMode: profile.signatureMode,
-    skipMissing: profile.skipMissing,
-    skipUnreadable: profile.skipUnreadable,
-    snapshotExtensions: profile.snapshotExtensions,
-    sourceDir: userDataDir,
-    targetDir: profile.persistTo,
-  });
+  await profile?.persistRuntimeProfile(record.userDataDir);
 }
 
 function createBaseRecord(options: {
+  browserSummary: CodeServerSessionRecord["browserSummary"];
+  correlationId: string;
   lastStartSummary: string | null;
   launchPlan: Awaited<ReturnType<typeof createCodeServerLaunchPlan>>;
   launchStrategy: string;
+  metadata: Record<string, unknown> | null;
   preparation: Awaited<ReturnType<typeof ensureCodeServerPrepared>>["status"];
   readinessTarget: CodeServerSessionRecord["readinessTarget"];
   sessionKey: string;
@@ -785,11 +802,14 @@ function createBaseRecord(options: {
 }): CodeServerSessionRecord {
   return {
     bindAddr: options.launchPlan.bindAddr,
+    browserSummary: options.browserSummary ?? null,
+    correlationId: options.correlationId,
     diagnostics: null,
     extensionsDir: options.launchPlan.extensionsDir,
     health: "starting",
     lastStartSummary: options.lastStartSummary,
     launchStrategy: options.launchStrategy as CodeServerSessionRecord["launchStrategy"],
+    metadata: options.metadata,
     pid: null,
     port: options.launchPlan.port,
     preparation: options.preparation,
@@ -812,7 +832,10 @@ function createBaseRecord(options: {
 }
 
 function createDiagnosticsSnapshot(options: {
+  backendCheckpoints: CodeServerSessionBackendCheckpoint[];
   browserEvents: NonNullable<CodeServerSessionDiagnostics["browserEvents"]>;
+  browserSummary: CodeServerSessionRecord["browserSummary"];
+  correlationId: string;
   handle: CodeServerProcessHandle | null;
   journalTail: string;
   normalizedFailure: CodeServerSessionDiagnostics["normalizedFailure"];
@@ -820,14 +843,19 @@ function createDiagnosticsSnapshot(options: {
   summary: Record<string, unknown>;
 }): CodeServerSessionDiagnosticsSnapshot {
   return {
+    backendCheckpoints: options.backendCheckpoints,
     browserEvents: options.browserEvents,
+    correlationId: options.correlationId,
     journalTail: options.journalTail || undefined,
     normalizedFailure: options.normalizedFailure ?? null,
     pid: options.handle?.pid ?? null,
     readyElapsedMs: options.readyElapsedMs,
     stderrTail: options.handle?.getStderr(),
     stdoutTail: options.handle?.getStdout(),
-    summary: options.summary,
+    summary: {
+      ...options.summary,
+      browserSummary: options.browserSummary ?? null,
+    },
     updatedAt: nowIso(),
   };
 }
@@ -836,7 +864,9 @@ async function writeDiagnosticsFile(record: CodeServerSessionRecord, paths: Retu
   await mkdirp(path.dirname(paths.diagnosticsPath));
   const snapshot = record.diagnostics;
   const diagnostics: CodeServerSessionDiagnostics = {
+    backendCheckpoints: snapshot?.backendCheckpoints,
     browserEvents: snapshot?.browserEvents,
+    correlationId: snapshot?.correlationId,
     diagnosticsPath: paths.diagnosticsPath,
     journalTail: snapshot?.journalTail,
     normalizedFailure: snapshot?.normalizedFailure ?? null,
@@ -878,10 +908,27 @@ function normalizeSessionKey(value: string): string {
   return normalized.replace(/[^A-Za-z0-9._-]+/g, "-");
 }
 
-function normalizeProfileConfig(profile: CodeServerProfileLifecycleOptions | undefined) {
+function normalizeProfileConfig(profile: CodeServerProfileLifecycleOptions | CodeServerProfilePolicy | undefined) {
   if (!profile) return null;
+  if (isProfilePolicy(profile)) {
+    const description = profile.describe();
+    return {
+      debounceMs: description.debounceMs,
+      includeExtensionState: description.includeExtensionState,
+      items: [...description.items].sort(),
+      pathMap: description.pathMap,
+      persistPolicy: description.persistPolicy,
+      persistTo: description.persistTo,
+      restoreFrom: description.restoreFrom,
+      restorePolicy: description.restorePolicy,
+      signatureMode: description.signatureMode,
+      snapshotExtensions: description.snapshotExtensions,
+    };
+  }
 
   return {
+    debounceMs: profile.debounceMs ?? 0,
+    includeExtensionState: profile.includeExtensionState ?? false,
     items: [...(profile.items ?? [])].sort(),
     pathMap: profile.pathMap ?? {},
     persistPolicy: profile.persistPolicy ?? "if-changed",
@@ -891,6 +938,95 @@ function normalizeProfileConfig(profile: CodeServerProfileLifecycleOptions | und
     signatureMode: profile.signatureMode ?? "content-hash",
     snapshotExtensions: profile.snapshotExtensions ?? false,
   };
+}
+
+function mergeSessionBrowserOptions(
+  defaults: CodeServerSessionBrowserOptions | undefined,
+  overrides: CodeServerSessionBrowserOptions | undefined,
+): CodeServerSessionBrowserOptions | undefined {
+  if (!defaults && !overrides) {
+    return undefined;
+  }
+
+  return normalizeSessionBrowserOptions({
+    bridge: overrides?.bridge ?? defaults?.bridge,
+    integration: overrides?.integration ?? defaults?.integration,
+    policy: {
+      ...(defaults?.policy ?? {}),
+      ...(overrides?.policy ?? {}),
+    },
+  }) ?? undefined;
+}
+
+function normalizeSessionBrowserOptions(
+  options: CodeServerSessionBrowserOptions | undefined,
+): CodeServerSessionBrowserOptions | null {
+  if (!options) {
+    return null;
+  }
+
+  const integration = options.integration;
+  const bridge = options.bridge ?? integration?.bridge;
+  const hasPolicy = Boolean(options.policy && Object.keys(options.policy).length > 0);
+  if (!bridge && !integration && !hasPolicy) {
+    return null;
+  }
+
+  return {
+    bridge,
+    integration,
+    policy: options.policy,
+  };
+}
+
+function resolveProfilePolicy(
+  profile: CodeServerProfileLifecycleOptions | CodeServerProfilePolicy | undefined,
+  readonly = createReadonlySessionPolicy(false),
+): CodeServerProfilePolicy | null {
+  if (!profile) {
+    return Object.keys(readonly.settingsPatch).length > 0
+      ? createCodeServerProfilePolicy({
+        readonly,
+      })
+      : null;
+  }
+
+  if (isProfilePolicy(profile)) {
+    return profile;
+  }
+
+  return createCodeServerProfilePolicy({
+    ...profile,
+    readonly,
+  });
+}
+
+function isProfilePolicy(value: unknown): value is CodeServerProfilePolicy {
+  return Boolean(value)
+    && typeof value === "object"
+    && "prepareRuntimeProfile" in value
+    && typeof (value as CodeServerProfilePolicy).prepareRuntimeProfile === "function";
+}
+
+function createSessionCorrelationId(sessionKey: string, specHash: string): string {
+  return createHash("sha256")
+    .update(`${sessionKey}:${specHash}:${Date.now()}`)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function pushBackendCheckpoint(
+  checkpoints: CodeServerSessionBackendCheckpoint[],
+  phase: CodeServerSessionBackendCheckpoint["phase"],
+  summary: string,
+  details: Record<string, unknown>,
+): void {
+  checkpoints.push({
+    details,
+    phase,
+    summary,
+    timestamp: nowIso(),
+  });
 }
 
 function hashNormalizedSpec(value: unknown): string {
@@ -1008,12 +1144,15 @@ function createEmptyStopResult(sessionKey: string): CodeServerSessionStopResult 
     diagnostics: null,
     status: {
       bindAddr: "",
+      browserSummary: null,
+      correlationId: null,
       diagnostics: null,
       extensionsDir: "",
       failure: null,
       health: "stopped",
       lastStartSummary: null,
       launchStrategy: "direct",
+      metadata: null,
       pid: null,
       port: 0,
       preparation: null,

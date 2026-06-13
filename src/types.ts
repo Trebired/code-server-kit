@@ -44,7 +44,8 @@ type CodeServerProfileItem =
   | "extensions.json"
   | "keybindings.json"
   | "snippets"
-  | "extensions";
+  | "extensions"
+  | "globalStorage";
 type CodeServerProfileRestorePolicy = "always" | "if-missing-or-empty";
 type CodeServerProfilePersistPolicy = "always" | "if-changed";
 type CodeServerProfileSignatureMode = "content-hash";
@@ -67,19 +68,51 @@ type CodeServerBrowserDiagnosticType =
   | "shell-loaded"
   | "websocket-open"
   | "websocket-error"
+  | "websocket-close"
   | "workbench-mounted"
   | "bootstrap-timeout"
+  | "frontend-stalled"
+  | "extension-host-stalled"
   | "resource-error"
+  | "resource-mime-mismatch"
+  | "asset-404"
+  | "asset-missing"
   | "csp-violation"
   | "service-worker"
+  | "service-worker-ready"
+  | "service-worker-controller-change"
+  | "service-worker-error"
+  | "iframe-loaded"
   | "iframe-error"
+  | "iframe-visibility"
+  | "iframe-timeout"
+  | "iframe-ready"
+  | "iframe-failure"
+  | "worker-created"
   | "worker-error"
   | "javascript-error"
   | "unhandled-rejection"
   | "readonly-guard"
+  | "theme-sync"
   | "custom";
 type CodeServerBrowserDiagnosticLevel = "info" | "warn" | "error";
-type CodeServerReadonlyPolicyMode = "off" | "readonly";
+type CodeServerReadonlyPolicyMode = "off" | "readonly" | "view";
+type CodeServerBrowserDiagnosticsTransportMode = "memory" | "callback" | "postmessage" | "http-post";
+type CodeServerEmbedState = "idle" | "loading" | "ready" | "failed" | "stalled";
+type CodeServerEmbedMessageType = "status" | "ready" | "failure" | "visibility" | "still-loading" | "theme";
+type CodeServerReadonlyBrowserActionKind = "command" | "shortcut" | "label" | "selector" | "drop" | "upload";
+type CodeServerBrowserFailureCategory =
+  | "shell-loaded-but-workbench-never-mounted"
+  | "websocket-ready-but-frontend-stalled"
+  | "browser-bootstrap-started-but-workbench-never-mounted"
+  | "static-asset-root-mismatch"
+  | "missing-support-files"
+  | "csp-blocked-bootstrap"
+  | "worker-bootstrap-failed"
+  | "iframe-load-failed"
+  | "mime-type-mismatch"
+  | "extension-host-stalled"
+  | "unknown";
 
 type CodeServerKitLogMethod = LoggerAdapterLogMethod;
 type CodeServerKitLogEvent = LoggerAdapterEvent;
@@ -219,19 +252,43 @@ type CodeServerTranslatedPath = {
 type CodeServerReadonlyPolicyOptions = {
   browserGuards?: {
     blockDragAndDrop?: boolean;
+    blockUpload?: boolean;
+    blockedSelectors?: string[];
+    blockedUiLabels?: string[];
+    readonlyMessage?: string;
+    showBanner?: boolean;
   };
+  blockedCommandIds?: string[];
+  blockedCommandPrefixes?: string[];
+  blockedCommandSubstrings?: string[];
+  blockedShortcuts?: string[];
   enabled?: boolean;
+  mode?: CodeServerReadonlyPolicyMode;
   settingsPatch?: Record<string, unknown>;
 };
 
 type CodeServerReadonlyPolicy = {
   browserGuards: {
     blockDragAndDrop: boolean;
+    blockUpload: boolean;
+    blockedSelectors: string[];
+    blockedUiLabels: string[];
+    readonlyMessage: string;
+    showBanner: boolean;
   };
+  blockedCommandIds: string[];
+  blockedCommandPrefixes: string[];
+  blockedCommandSubstrings: string[];
+  blockedShortcuts: string[];
   enabled: boolean;
   mode: CodeServerReadonlyPolicyMode;
   settingsPatch: Record<string, unknown>;
 };
+
+type CodeServerReadonlyInput =
+  | boolean
+  | CodeServerReadonlyPolicy
+  | CodeServerReadonlyPolicyOptions;
 
 type CodeServerSandboxPlan = {
   bindings: CodeServerPathBinding[];
@@ -270,6 +327,9 @@ type ResolveCodeServerInstallationOptions = {
 
 type CodeServerBrowserReadinessPolicy = {
   bootstrapTimeoutMs: number;
+  iframeTimeoutMs?: number;
+  shellSelectors?: string[];
+  stallTimeoutMs?: number;
   target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench">;
   workbenchSelectors: string[];
 };
@@ -284,11 +344,72 @@ type CodeServerBrowserDiagnosticEvent = {
   type: CodeServerBrowserDiagnosticType;
 };
 
+type CodeServerReadonlyBrowserAction = {
+  commandId?: string;
+  kind: CodeServerReadonlyBrowserActionKind;
+  label?: string;
+  selector?: string;
+  shortcut?: string;
+};
+
+type CodeServerReadonlyBrowserBlockResult = {
+  action: CodeServerReadonlyBrowserAction;
+  blocked: boolean;
+  reason: string | null;
+  summary: string;
+};
+
+type CodeServerBrowserDiagnosticsTransportOptions = {
+  arrayName?: string;
+  batchSize?: number;
+  callbackName?: string;
+  debounceMs?: number;
+  endpointUrl?: string;
+  headers?: Record<string, string>;
+  keepalive?: boolean;
+  messageType?: string;
+  mode?: CodeServerBrowserDiagnosticsTransportMode;
+  preferSendBeacon?: boolean;
+  retryCount?: number;
+  targetOrigin?: string;
+};
+
+type CodeServerBrowserDiagnosticsRuntimeTransport = {
+  arrayName?: string;
+  batchSize: number;
+  callbackName?: string;
+  debounceMs: number;
+  endpointUrl?: string;
+  headers?: Record<string, string>;
+  keepalive: boolean;
+  messageType: string;
+  mode: CodeServerBrowserDiagnosticsTransportMode;
+  preferSendBeacon: boolean;
+  retryCount: number;
+  targetOrigin: string;
+};
+
+type CodeServerBrowserDiagnosticsTransport = {
+  clear(): void;
+  deliver(events: CodeServerBrowserDiagnosticEvent | CodeServerBrowserDiagnosticEvent[]): Promise<void>;
+  getBufferedEvents(): CodeServerBrowserDiagnosticEvent[];
+  getRuntimeConfig(): CodeServerBrowserDiagnosticsRuntimeTransport;
+  mode: CodeServerBrowserDiagnosticsTransportMode;
+  parseMessage(data: unknown, sanitizer?: CodeServerSanitizerOptions): CodeServerBrowserDiagnosticEvent[];
+};
+
 type CodeServerBrowserDiagnosticsScriptOptions = {
   bridgeProperty?: string;
+  embed?: {
+    channel?: string;
+    enableParentStatus?: boolean;
+  };
+  nonce?: string;
   policy?: Partial<CodeServerBrowserReadinessPolicy>;
-  readonly?: CodeServerReadonlyPolicyOptions | boolean;
+  readonly?: CodeServerReadonlyInput;
   sessionKey?: string;
+  theme?: CodeServerThemeSyncOptions;
+  transport?: CodeServerBrowserDiagnosticsRuntimeTransport | CodeServerBrowserDiagnosticsTransportOptions;
 };
 
 type CodeServerHtmlInjectionStrategy = "append-body" | "prepend-head";
@@ -302,8 +423,140 @@ type CodeServerHtmlInjectionPlan = {
 };
 
 type CreateHtmlInjectionPlanOptions = {
+  nonce?: string;
   script: string;
   strategy?: CodeServerHtmlInjectionStrategy;
+};
+
+type CodeServerThemeSyncOptions = {
+  attributeName?: string;
+  broadcastChannelName?: string;
+  eventName?: string;
+  initialTheme?: string | null;
+  messageType?: string;
+  storageKey?: string;
+};
+
+type CodeServerHtmlAppearanceOptions = {
+  bodyData?: Record<string, string>;
+  colorScheme?: string | null;
+  faviconHref?: string | null;
+  stylesheetHref?: string | null;
+  title?: string | null;
+};
+
+type CodeServerBrowserFailure = {
+  category: CodeServerBrowserFailureCategory;
+  hint: string;
+  relevantEvent: CodeServerBrowserDiagnosticEvent | null;
+  retryable: boolean;
+  summary: string;
+};
+
+type CodeServerBrowserDiagnosticsSummary = {
+  counts: Record<string, number>;
+  eventCategory: CodeServerBrowserDiagnosticType | "none";
+  failureHint: string | null;
+  frameState: "failed" | "hidden" | "loading" | "ready" | "unknown";
+  mostRelevantUrl: string | null;
+  retryable: boolean;
+  selectors: string[];
+  workbenchState: "loading" | "mounted" | "stalled" | "unknown";
+};
+
+type CodeServerBrowserIntegrationOptions = {
+  appearance?: CodeServerHtmlAppearanceOptions;
+  bridge?: CodeServerSessionDiagnosticsBridge;
+  diagnostics?: {
+    bridgeProperty?: string;
+    policy?: Partial<CodeServerBrowserReadinessPolicy>;
+    sanitizer?: CodeServerSanitizerOptions;
+    transport?: CodeServerBrowserDiagnosticsTransport | CodeServerBrowserDiagnosticsTransportOptions;
+  };
+  embed?: {
+    channel?: string;
+    enableParentStatus?: boolean;
+  };
+  html?: {
+    cspNonce?: string;
+    injectStrategy?: CodeServerHtmlInjectionStrategy;
+    stripEmptyModuleScripts?: boolean;
+    stripKnownBrokenModuleScripts?: boolean;
+  };
+  readonly?: CodeServerReadonlyInput;
+  sessionKey?: string;
+  theme?: CodeServerThemeSyncOptions;
+};
+
+type CodeServerBrowserBridgeOptions = CodeServerBrowserIntegrationOptions;
+
+type TransformCodeServerHtmlOptions = {
+  appearance?: CodeServerHtmlAppearanceOptions;
+  bridge?: CodeServerSessionDiagnosticsBridge;
+  cspNonce?: string;
+  diagnostics?: CodeServerBrowserIntegrationOptions["diagnostics"];
+  embed?: CodeServerBrowserIntegrationOptions["embed"];
+  html: string;
+  injectStrategy?: CodeServerHtmlInjectionStrategy;
+  readonly?: CodeServerReadonlyInput;
+  sessionKey?: string;
+  stripEmptyModuleScripts?: boolean;
+  stripKnownBrokenModuleScripts?: boolean;
+  theme?: CodeServerThemeSyncOptions;
+};
+
+type CodeServerBrowserIntegration = {
+  bridge: CodeServerSessionDiagnosticsBridge;
+  classifyFailure(events?: CodeServerBrowserDiagnosticEvent[]): CodeServerBrowserFailure;
+  createScript(options?: Partial<TransformCodeServerHtmlOptions>): string;
+  readonlyPolicy: CodeServerReadonlyPolicy;
+  summarize(events?: CodeServerBrowserDiagnosticEvent[]): CodeServerBrowserDiagnosticsSummary;
+  transformHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "readonly" | "theme" | "sessionKey"> & {
+    cspNonce?: string;
+  }): string;
+  transport: CodeServerBrowserDiagnosticsTransport;
+};
+
+type CodeServerBrowserBridge = CodeServerBrowserIntegration & {
+  injectHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "readonly" | "theme" | "sessionKey"> & {
+    cspNonce?: string;
+  }): string;
+  parseEvent(event: unknown, sanitizer?: CodeServerSanitizerOptions): CodeServerBrowserDiagnosticEvent;
+  parseMessage(data: unknown, sanitizer?: CodeServerSanitizerOptions): CodeServerBrowserDiagnosticEvent[];
+};
+
+type CodeServerEmbedMessage = {
+  channel: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+  type: CodeServerEmbedMessageType;
+};
+
+type CodeServerEmbedControllerOptions = {
+  channel?: string;
+  loadTimeoutMs?: number;
+  logger?: CodeServerKitLogger;
+  loggerAdapter?: CodeServerKitLoggerAdapter;
+  sanitizer?: CodeServerSanitizerOptions;
+  targetOrigin?: string;
+};
+
+type CodeServerEmbedController = {
+  createChildTransport(): CodeServerBrowserDiagnosticsTransport;
+  createStatusMessage(type: CodeServerEmbedMessageType, payload?: Record<string, unknown>): CodeServerEmbedMessage;
+  getState(): {
+    events: CodeServerEmbedMessage[];
+    lastMessage: CodeServerEmbedMessage | null;
+    ready: boolean;
+    state: CodeServerEmbedState;
+    targetOrigin: string;
+    visible: boolean;
+  };
+  handleMessage(data: unknown): CodeServerEmbedMessage | null;
+  recordVisibility(visible: boolean): CodeServerEmbedMessage;
+  waitForReady(options?: {
+    timeoutMs?: number;
+  }): Promise<CodeServerEmbedMessage>;
 };
 
 type CodeServerSessionDiagnosticsBridge = {
@@ -330,12 +583,15 @@ type CreateCodeServerSessionDiagnosticsBridgeOptions = {
   sanitizer?: CodeServerSanitizerOptions;
 };
 
+type CodeServerSessionBrowserOptions = {
+  bridge?: CodeServerSessionDiagnosticsBridge;
+  integration?: CodeServerBrowserBridge;
+  policy?: Partial<CodeServerBrowserReadinessPolicy>;
+};
+
 type CreateCodeServerLaunchPlanOptions = {
   bindAddr?: string;
-  browser?: {
-    bridge?: CodeServerSessionDiagnosticsBridge;
-    policy?: Partial<CodeServerBrowserReadinessPolicy>;
-  };
+  browser?: CodeServerSessionBrowserOptions;
   cwd?: string;
   dataRoot?: string;
   env?: NodeJS.ProcessEnv;
@@ -350,7 +606,7 @@ type CreateCodeServerLaunchPlanOptions = {
     strictWatchdog?: boolean;
   };
   readinessTarget?: CodeServerReadinessTarget;
-  readonly?: CodeServerReadonlyPolicyOptions | boolean;
+  readonly?: CodeServerReadonlyInput;
   resolveFrom?: string;
   sessionKey?: string;
   stateRoot?: string;
@@ -568,16 +824,66 @@ type PersistCodeServerProfileIfChangedResult = CodeServerProfileSyncResult & {
 };
 
 type CodeServerProfileLifecycleOptions = {
+  debounceMs?: number;
+  includeExtensionState?: boolean;
   items?: CodeServerProfileItem[];
   pathMap?: Partial<CodeServerProfilePathMap>;
   persistPolicy?: CodeServerProfilePersistPolicy;
   persistTo?: string;
   restoreFrom?: string;
   restorePolicy?: CodeServerProfileRestorePolicy;
+  settingsPatch?: Record<string, unknown>;
   signatureMode?: CodeServerProfileSignatureMode;
   skipMissing?: boolean;
   skipUnreadable?: boolean;
   snapshotExtensions?: boolean;
+};
+
+type CodeServerProfilePolicyOptions = CodeServerProfileLifecycleOptions & {
+  readonly?: CodeServerReadonlyInput;
+};
+
+type CodeServerProfileRestoreResult = {
+  restored: boolean;
+  runtimeDir: string;
+  settingsPatched: boolean;
+  skipped: boolean;
+  snapshot: CodeServerProfileSnapshot;
+  sync: CodeServerProfileSyncResult | null;
+};
+
+type CodeServerProfilePersistResult = PersistCodeServerProfileIfChangedResult & {
+  persisted: boolean;
+  runtimeDir: string;
+};
+
+type CodeServerProfilePrepareResult = {
+  persistTarget: string | null;
+  readonlyDefaultsApplied: boolean;
+  restore: CodeServerProfileRestoreResult;
+  runtimeDir: string;
+};
+
+type CodeServerProfilePolicy = {
+  describe(): {
+    debounceMs: number;
+    hasSettingsPatch: boolean;
+    includeExtensionState: boolean;
+    items: CodeServerProfileItem[];
+    pathMap: CodeServerProfilePathMap;
+    persistPolicy: CodeServerProfilePersistPolicy;
+    persistTo: string | null;
+    readonly: CodeServerReadonlyPolicy;
+    restoreFrom: string | null;
+    restorePolicy: CodeServerProfileRestorePolicy;
+    signatureMode: CodeServerProfileSignatureMode;
+    snapshotExtensions: boolean;
+  };
+  persistRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePersistResult>;
+  prepareRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePrepareResult>;
+  readRuntimeSnapshot(runtimeDir: string): Promise<CodeServerProfileSnapshot>;
+  restoreRuntimeProfile(runtimeDir: string): Promise<CodeServerProfileRestoreResult>;
+  schedulePersistRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePersistResult | null>;
 };
 
 type BuildForwardedHeadersOptions = {
@@ -605,6 +911,70 @@ type CodeServerProxyFailure = {
   category: CodeServerProxyFailureCategory;
   details: Record<string, unknown>;
   message: string;
+};
+
+type CodeServerProxyServiceWorkerMode = "neutralize" | "passthrough";
+type CodeServerProxyResponseKind = "passthrough" | "service-worker-override" | "transform";
+type CodeServerProfilePersistTrigger = "every-response" | "manual" | "transformed-html";
+
+type CodeServerProxyResponseClassification = {
+  kind: CodeServerProxyResponseKind;
+  reason: string;
+  stripBodyHeaders: boolean;
+};
+
+type CodeServerProxyServiceWorkerOverride = {
+  body: string;
+  contentType: string;
+  headers: Record<string, string>;
+  pathname: string;
+  statusCode: number;
+};
+
+type CodeServerProxyAdapterOptions = {
+  browser?: CodeServerBrowserBridge | CodeServerBrowserBridgeOptions;
+  diagnostics?: {
+    sanitizer?: CodeServerSanitizerOptions;
+  };
+  html?: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "html" | "readonly" | "sessionKey" | "theme">;
+  postResponse?(result: CodeServerProxyResponseResult): void | Promise<void>;
+  profile?: CodeServerProfilePolicy;
+  profilePersistTrigger?: CodeServerProfilePersistTrigger;
+  profileRuntimeDir?: string;
+  readonly?: CodeServerReadonlyInput;
+  serviceWorker?: {
+    body?: string;
+    contentType?: string;
+    headers?: Record<string, string>;
+    mode?: CodeServerProxyServiceWorkerMode;
+    pathname?: string;
+    statusCode?: number;
+  };
+};
+
+type CodeServerProxyResponseOptions = CodeServerHtmlResponseOptions & {
+  body?: string | null;
+  pathname?: string | null;
+};
+
+type CodeServerProxyResponseResult = {
+  body: string | null;
+  classification: CodeServerProxyResponseClassification;
+  headers: Record<string, string>;
+  statusCode: number;
+};
+
+type CodeServerProxyAdapter = {
+  browser: CodeServerBrowserBridge;
+  buildForwardedHeaders(options: BuildForwardedHeadersOptions): Record<string, string>;
+  buildWebSocketHeaders(options: BuildCodeServerWebSocketHeadersOptions): Record<string, string>;
+  classifyFailure(options: ClassifyCodeServerProxyFailureOptions): CodeServerProxyFailure;
+  classifyResponse(options: CodeServerProxyResponseOptions): CodeServerProxyResponseClassification;
+  handleResponse(options: CodeServerProxyResponseOptions): Promise<CodeServerProxyResponseResult>;
+  maybeOverrideServiceWorker(pathname?: string | null): CodeServerProxyServiceWorkerOverride | null;
+  persistProfile(runtimeDir?: string): Promise<CodeServerProfilePersistResult | null>;
+  readonlyPolicy: CodeServerReadonlyPolicy;
+  responseRequiresTransform(options: CodeServerProxyResponseOptions): boolean;
 };
 
 type CodeServerHtmlResponseOptions = {
@@ -664,9 +1034,18 @@ type NormalizedCodeServerStartupFailure = CodeServerStartupDiagnostics & {
   name: string;
 };
 
+type CodeServerSessionBackendCheckpoint = {
+  details: Record<string, unknown>;
+  phase: CodeServerLifecyclePhase | "session";
+  summary: string;
+  timestamp: string;
+};
+
 type CodeServerSessionDiagnosticsSnapshot = {
   activeState?: string | null;
+  backendCheckpoints?: CodeServerSessionBackendCheckpoint[];
   browserEvents?: CodeServerBrowserDiagnosticEvent[];
+  correlationId?: string;
   exitCode?: number | null;
   exitSignal?: NodeJS.Signals | null;
   journalTail?: string;
@@ -682,7 +1061,9 @@ type CodeServerSessionDiagnosticsSnapshot = {
 };
 
 type CodeServerSessionDiagnostics = {
+  backendCheckpoints?: CodeServerSessionBackendCheckpoint[];
   browserEvents?: CodeServerBrowserDiagnosticEvent[];
+  correlationId?: string;
   diagnosticsPath: string;
   journalTail?: string;
   normalizedFailure?: NormalizedCodeServerStartupFailure | null;
@@ -707,12 +1088,15 @@ type CodeServerSessionFailure = {
 
 type CodeServerSessionRecord = {
   bindAddr: string;
+  browserSummary?: CodeServerBrowserDiagnosticsSummary | null;
+  correlationId?: string | null;
   diagnostics: CodeServerSessionDiagnosticsSnapshot | null;
   extensionsDir: string;
   failure?: CodeServerSessionFailure | null;
   health: CodeServerSessionHealth;
   lastStartSummary?: string | null;
   launchStrategy: CodeServerLaunchStrategy;
+  metadata?: Record<string, unknown> | null;
   pid: number | null;
   port: number;
   preparation: CodeServerPreparationStatus | null;
@@ -735,12 +1119,15 @@ type CodeServerSessionRecord = {
 
 type CodeServerSessionStatus = {
   bindAddr: string;
+  browserSummary?: CodeServerBrowserDiagnosticsSummary | null;
+  correlationId?: string | null;
   diagnostics: CodeServerSessionDiagnostics | null;
   extensionsDir: string;
   failure: CodeServerSessionFailure | null;
   health: CodeServerSessionHealth;
   lastStartSummary: string | null;
   launchStrategy: CodeServerLaunchStrategy;
+  metadata?: Record<string, unknown> | null;
   pid: number | null;
   port: number;
   preparation: CodeServerPreparationStatus | null;
@@ -785,9 +1172,12 @@ type CodeServerSessionRestartResult = {
 };
 
 type CodeServerSessionManagerOptions = {
+  browser?: CodeServerSessionBrowserOptions;
   installation?: CodeServerInstallation;
   logger?: CodeServerKitLogger;
   loggerAdapter?: CodeServerKitLoggerAdapter;
+  profile?: CodeServerProfileLifecycleOptions | CodeServerProfilePolicy;
+  readonly?: CodeServerReadonlyInput;
   resolveFrom?: string;
 };
 
@@ -802,7 +1192,8 @@ type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
   launchStrategy?: CodeServerLaunchStrategy;
   logger?: CodeServerKitLogger;
   loggerAdapter?: CodeServerKitLoggerAdapter;
-  profile?: CodeServerProfileLifecycleOptions;
+  metadata?: Record<string, unknown>;
+  profile?: CodeServerProfileLifecycleOptions | CodeServerProfilePolicy;
   readinessRetryIntervalMs?: number;
   readinessTimeoutMs?: number;
   sanitizer?: CodeServerSanitizerOptions;
@@ -907,8 +1298,19 @@ export type {
   ClassifyCodeServerProxyFailureOptions,
   CodeServerBrowserDiagnosticEvent,
   CodeServerBrowserDiagnosticLevel,
+  CodeServerBrowserDiagnosticsRuntimeTransport,
   CodeServerBrowserDiagnosticsScriptOptions,
+  CodeServerBrowserDiagnosticsSummary,
+  CodeServerBrowserDiagnosticsTransport,
+  CodeServerBrowserDiagnosticsTransportMode,
+  CodeServerBrowserDiagnosticsTransportOptions,
   CodeServerBrowserDiagnosticType,
+  CodeServerBrowserBridge,
+  CodeServerBrowserBridgeOptions,
+  CodeServerBrowserFailure,
+  CodeServerBrowserFailureCategory,
+  CodeServerBrowserIntegration,
+  CodeServerBrowserIntegrationOptions,
   CodeServerBrowserReadinessPolicy,
   CodeServerDiagnosticCategory,
   CodeServerDependencyCheck,
@@ -917,8 +1319,14 @@ export type {
   CodeServerDoctorResult,
   CodeServerEnsureLaunchableOptions,
   CodeServerEnsureLaunchableResult,
+  CodeServerEmbedController,
+  CodeServerEmbedControllerOptions,
+  CodeServerEmbedMessage,
+  CodeServerEmbedMessageType,
+  CodeServerEmbedState,
   CodeServerEntryKind,
   CodeServerHtmlInjectionPlan,
+  CodeServerHtmlAppearanceOptions,
   CodeServerHtmlInjectionStrategy,
   CodeServerHtmlResponseOptions,
   CodeServerInstallArtifactCheck,
@@ -951,9 +1359,15 @@ export type {
   CodeServerProfileEntryKind,
   CodeServerProfileItem,
   CodeServerProfileLifecycleOptions,
+  CodeServerProfilePersistResult,
+  CodeServerProfilePersistTrigger,
+  CodeServerProfilePolicy,
+  CodeServerProfilePolicyOptions,
   CodeServerProfilePathMap,
   CodeServerProfilePersistPolicy,
+  CodeServerProfilePrepareResult,
   CodeServerProfileRestorePolicy,
+  CodeServerProfileRestoreResult,
   CodeServerProfileSignatureMode,
   CodeServerProfileSkipReason,
   CodeServerProfileSnapshot,
@@ -961,8 +1375,16 @@ export type {
   CodeServerProfileSyncEntry,
   CodeServerProfileSyncPlan,
   CodeServerProfileSyncResult,
+  CodeServerProxyAdapter,
+  CodeServerProxyAdapterOptions,
   CodeServerProxyFailure,
   CodeServerProxyFailureCategory,
+  CodeServerProxyResponseClassification,
+  CodeServerProxyResponseKind,
+  CodeServerProxyResponseOptions,
+  CodeServerProxyResponseResult,
+  CodeServerProxyServiceWorkerMode,
+  CodeServerProxyServiceWorkerOverride,
   CodeServerReadinessState,
   CodeServerReadinessStatus,
   CodeServerReadinessTarget,
@@ -971,6 +1393,10 @@ export type {
   CodeServerReadyFailureProbe,
   CodeServerReadyOptions,
   CodeServerReadyResult,
+  CodeServerReadonlyInput,
+  CodeServerReadonlyBrowserAction,
+  CodeServerReadonlyBrowserActionKind,
+  CodeServerReadonlyBrowserBlockResult,
   CodeServerReadonlyPolicy,
   CodeServerReadonlyPolicyMode,
   CodeServerReadonlyPolicyOptions,
@@ -982,6 +1408,8 @@ export type {
   CodeServerSandboxPlan,
   CodeServerSanitizedDiagnostics,
   CodeServerSanitizerOptions,
+  CodeServerSessionBackendCheckpoint,
+  CodeServerSessionBrowserOptions,
   CodeServerSessionDiagnostics,
   CodeServerSessionDiagnosticsBridge,
   CodeServerSessionDiagnosticsSnapshot,
@@ -1025,4 +1453,6 @@ export type {
   ReadCodeServerProfileSnapshotOptions,
   ResolveCodeServerInstallationOptions,
   SyncCodeServerProfileOptions,
+  CodeServerThemeSyncOptions,
+  TransformCodeServerHtmlOptions,
 };

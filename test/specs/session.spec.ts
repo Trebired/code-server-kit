@@ -57,6 +57,34 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 `;
 
+const DELAYED_LISTENING_ENTRY = `#!/usr/bin/env node
+const http = require("node:http");
+
+function readArg(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+const bindAddr = readArg("--bind-addr") || "127.0.0.1:8080";
+const host = bindAddr.slice(0, bindAddr.lastIndexOf(":"));
+const port = Number(bindAddr.slice(bindAddr.lastIndexOf(":") + 1));
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end("ok");
+});
+
+setTimeout(() => {
+  server.listen(port, host, () => process.stdout.write("listening\\n"));
+}, 250);
+
+function shutdown() {
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+`;
+
 describe("@trebired/code-server-kit session", () => {
   test("starts a fresh direct session, reports ready status, and stops cleanly", async () => {
     const root = tempDir();
@@ -292,7 +320,7 @@ describe("@trebired/code-server-kit session", () => {
     const root = tempDir();
     const stateRoot = tempDir();
     createFakeCodeServerPackage(root, {
-      entryContents: LISTENING_ENTRY,
+      entryContents: DELAYED_LISTENING_ENTRY,
     });
 
     const manager = createCodeServerSessionManager({
@@ -430,6 +458,51 @@ describe("@trebired/code-server-kit session", () => {
 
     await stopCodeServerSession({
       sessionKey: "browser-failure",
+      stateRoot,
+    });
+  });
+
+  test("persists correlation ids and backend checkpoints in diagnostics snapshots", async () => {
+    const root = tempDir();
+    const stateRoot = tempDir();
+    createFakeCodeServerPackage(root, {
+      entryContents: LISTENING_ENTRY,
+    });
+
+    const started = await startCodeServerSession({
+      metadata: {
+        owner: "tests",
+      },
+      resolveFrom: root,
+      sessionKey: "diagnostics",
+      stateRoot,
+      workspacePath: "/srv/workspaces/demo",
+    });
+    const status = await getCodeServerSessionStatus({
+      sessionKey: "diagnostics",
+      stateRoot,
+    });
+    const snapshot = JSON.parse(readFile(stateRoot, "sessions/diagnostics/diagnostics.json")) as {
+      backendCheckpoints?: Array<{ phase: string; summary: string }>;
+      correlationId?: string;
+      summary: {
+        correlationId?: string;
+        launchStrategy?: string;
+      };
+    };
+
+    expect(started.status.correlationId).toBeTruthy();
+    expect(status?.metadata).toEqual({
+      owner: "tests",
+    });
+    expect(snapshot.correlationId).toBe(started.status.correlationId);
+    expect(snapshot.summary.correlationId).toBe(started.status.correlationId);
+    expect(snapshot.summary.launchStrategy).toBe("direct");
+    expect(snapshot.backendCheckpoints?.some((checkpoint) => checkpoint.phase === "launch")).toBe(true);
+    expect(snapshot.backendCheckpoints?.some((checkpoint) => checkpoint.summary.includes("readiness"))).toBe(true);
+
+    await stopCodeServerSession({
+      sessionKey: "diagnostics",
       stateRoot,
     });
   });

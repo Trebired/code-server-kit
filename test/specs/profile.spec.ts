@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  createCodeServerProfilePolicy,
   createCodeServerProfileSyncPlan,
   persistCodeServerProfileIfChanged,
   readCodeServerProfileSignature,
@@ -109,5 +110,39 @@ describe("@trebired/code-server-kit profile", () => {
       items: ["settings.json"],
       rootDir: targetDir,
     })).toBe(second.nextSignature);
+  });
+
+  test("owns runtime profile restore, readonly patching, and persist orchestration", async () => {
+    const restoreFrom = tempDir();
+    const persistTo = tempDir();
+    const runtimeDir = tempDir();
+
+    writeFile(restoreFrom, "User/settings.json", "{\n  \"editor.fontSize\": 14\n}\n");
+    writeFile(restoreFrom, "User/globalStorage/demo/state.json", "{\n  \"enabled\": true\n}\n");
+
+    const policy = createCodeServerProfilePolicy({
+      debounceMs: 1,
+      includeExtensionState: true,
+      persistTo,
+      readonly: {
+        enabled: true,
+        mode: "view",
+      },
+      restoreFrom,
+      settingsPatch: {
+        "workbench.colorTheme": "Quiet Light",
+      },
+    });
+
+    const prepared = await policy.prepareRuntimeProfile(runtimeDir);
+    const persisted = await policy.persistRuntimeProfile(runtimeDir);
+
+    expect(prepared.restore.restored).toBe(true);
+    expect(prepared.restore.settingsPatched).toBe(true);
+    expect(readFile(runtimeDir, "User/settings.json")).toContain("\"workbench.colorTheme\": \"Quiet Light\"");
+    expect(readFile(runtimeDir, "User/settings.json")).toContain("\"extensions.autoUpdate\": false");
+    expect(exists(runtimeDir, "User/globalStorage/demo/state.json")).toBe(true);
+    expect(persisted?.persisted).toBe(true);
+    expect(exists(persistTo, "User/globalStorage/demo/state.json")).toBe(true);
   });
 });

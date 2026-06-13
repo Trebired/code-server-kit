@@ -1,20 +1,18 @@
 # @trebired/code-server-kit
 
-Framework-agnostic `code-server` integration layer for Node.js applications.
+Framework-agnostic `code-server` ownership layer for Node.js hosts.
 
-`@trebired/code-server-kit` is the generic Trebired package for owning the real `code-server` integration lifecycle on Linux-first hosts:
+`@trebired/code-server-kit` is the generic Trebired package for taking control of the real `code-server` integration lifecycle on Linux-first systems:
 
-- install validation, launchability checks, and targeted repair
-- installation and support-root resolution
-- launch, sandbox, and readonly policy planning
-- direct and transient systemd launching
-- server-side and browser-side readiness
-- session reuse, restart, stop, and status refresh
-- structured startup diagnostics, browser events, and redaction
-- allowlisted profile restore and persistence
-- proxy-facing helpers for forwarded and websocket headers
+- install validation, repair, and entrypoint resolution
+- launch planning for direct and transient systemd execution
+- session ownership with reuse, restart, stale invalidation, readiness, and persisted diagnostics
+- browser bridge ownership for workbench detection, browser diagnostics, and readonly guards
+- HTML transform ownership for nonce-safe injection and idempotent rewriting
+- proxy ownership for forwarded headers, websocket headers, response branching, and service-worker overrides
+- profile lifecycle ownership for allowlisted restore, persist, settings patching, and readonly runtime defaults
 
-The package stays generic on purpose. It does not know about products, repositories, organizations, routes, or app-specific filesystem conventions.
+The package stays generic on purpose. It does not know about products, routes, repositories, branding, or vendor-specific runtime conventions.
 
 ## Install
 
@@ -24,87 +22,100 @@ Runtime target: Node.js 22+ on Linux first.
 npm install @trebired/code-server-kit
 ```
 
-`code-server` is installed as a normal dependency of this package. A host application only needs a separate direct `code-server` dependency when it intentionally wants to override how resolution happens.
-
-By default, the package resolves and prepares its own bundled `code-server`. A host does not need to pass `resolveFrom` just to make normal session startup work.
+`code-server` is bundled as a normal dependency of this package. A host application usually does not need its own direct `code-server` dependency unless it intentionally wants to override resolution.
 
 ## Preferred Flow
 
-The preferred host integration flow is now:
+The preferred host integration is:
 
-1. Create a session manager.
-2. Start a session with `sessionKey`, `stateRoot`, `workspacePath`, and trusted origins.
-3. Let the package prepare `code-server`, restore profile data, choose launch mechanics, supervise readiness, and persist diagnostics.
+1. Create one readonly policy.
+2. Create one profile policy.
+3. Create one browser bridge.
+4. Create one proxy adapter.
+5. Create one session manager.
 
 ```ts
 import {
+  createCodeServerBrowserBridge,
+  createCodeServerProfilePolicy,
+  createCodeServerProxyAdapter,
   createCodeServerSessionManager,
+  createReadonlySessionPolicy,
 } from "@trebired/code-server-kit";
 
+const readonly = createReadonlySessionPolicy({
+  enabled: true,
+  mode: "view",
+});
+
+const profile = createCodeServerProfilePolicy({
+  includeExtensionState: true,
+  persistTo: "/srv/code-server/profiles/demo",
+  restoreFrom: "/srv/code-server/profiles/demo",
+  readonly,
+});
+
+const browser = createCodeServerBrowserBridge({
+  diagnostics: {
+    bridgeProperty: "__codeServerBridge__",
+    transport: {
+      mode: "postmessage",
+      targetOrigin: "https://app.example.com",
+    },
+  },
+  readonly,
+  sessionKey: "workspace-42",
+});
+
+const proxy = createCodeServerProxyAdapter({
+  browser,
+  profile,
+  profilePersistTrigger: "transformed-html",
+  profileRuntimeDir: "/srv/code-server/state/sessions/workspace-42/runtime/user-data",
+  readonly,
+  serviceWorker: {
+    mode: "neutralize",
+  },
+});
+
 const sessions = createCodeServerSessionManager({
-  logger: console,
+  browser: {
+    integration: browser,
+  },
+  profile,
+  readonly,
 });
 
 const started = await sessions.start({
+  launchStrategy: "direct",
   sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
+  stateRoot: "/srv/code-server/state",
   trustedOrigins: [
     "https://app.example.com",
   ],
   workspacePath: "/srv/workspaces/demo",
 });
 
-console.log(started.status.state, started.status.port);
-
-const status = await sessions.getStatus({
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-});
-
-console.log(status?.ready);
-
-await sessions.stop({
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-});
+console.log(started.status.ready, started.status.port, started.status.correlationId);
 ```
 
-The host application only needs a separate direct `code-server` dependency for explicit override scenarios, such as testing against a different installation root or intentionally pinning resolution outside `@trebired/code-server-kit`.
-
-## What The Package Owns
-
-High-level APIs now own generic mechanics that host apps previously had to rebuild:
-
-- validating whether the installed `code-server` package is actually launchable
-- repairing incomplete installs through package bootstrap and targeted dependency repair
-- resolving the true entrypoint and support root
-- deriving support-tree read-only bind suggestions
-- deriving readonly workspace bindings and ephemeral profile defaults
-- deciding `node <entry.js>` vs direct execution
-- preparing profile directories and syncing only allowlisted items
-- handling missing optional native watchdog support with a non-fatal fallback mode
-- deduplicating concurrent starts for the same `sessionKey`
-- reusing healthy sessions when the effective spec still matches
-- invalidating stale sessions and restarting cleanly when the spec changes
-- collecting phase-based backend diagnostics plus optional browser events
-- translating launch plans into transient systemd unit arguments
-
-Host applications mostly provide:
+At that point the host mostly provides:
 
 - `sessionKey`
 - `stateRoot`
 - `workspacePath`
 - `trustedOrigins`
-- `launchStrategy`
-- systemd `scope` when using systemd
-- optional profile and sanitization policy
+- launch strategy
+- readonly mode
+- profile roots
+- optional metadata
 - optional logging
 
-## Main High-Level APIs
+## Main Ownership APIs
 
 ### `createCodeServerSessionManager(options?)`
 
-Creates the main lifecycle object.
+The package-owned lifecycle entrypoint.
 
 Manager methods:
 
@@ -114,440 +125,297 @@ Manager methods:
 - `getStatus(options)`
 - `readDiagnostics(options)`
 
-### `startCodeServerSession(options)`
+What it owns:
 
-One-shot helper around the session manager.
+- inflight join vs conflict behavior
+- stale session invalidation
+- reuse when the effective spec still matches
+- direct vs systemd launch supervision
+- readiness progression
+- persisted session state
+- normalized startup failures
+- diagnostics snapshots with correlation ids and backend checkpoints
 
-Defaults:
+Useful related helpers:
 
-- `launchStrategy` defaults to `"direct"`
-- preparation defaults to auto-ensure
-- readiness defaults to `"http"` and can be raised to `"websocket"`, `"browser-shell"`, or `"workbench"`
-- exact-spec inflight starts join each other
-- conflicting inflight starts fail with a structured conflict error
-- profile restore defaults to `"if-missing-or-empty"`
-- profile persist defaults to `"if-changed"`
+- `startCodeServerSession(options)`
+- `stopCodeServerSession(options)`
+- `restartCodeServerSession(options)`
+- `inspectSessionFailure(options)`
 
-High-level aliases are also available for hosts that prefer shorter lifecycle names:
+### `createCodeServerBrowserBridge(options?)`
 
-- `startSession()`
-- `stopSession()`
-- `reuseSession()`
-- `inspectSessionFailure()`
+The preferred browser integration owner.
 
-### `getCodeServerSessionStatus(options)`
+Main methods:
 
-Returns a refreshed status object with:
+- `createScript()`
+- `injectHtml({ html, ... })`
+- `transformHtml({ html, ... })`
+- `parseEvent(value)`
+- `parseMessage(value)`
+- `classifyFailure(events?)`
+- `summarize(events?)`
 
-- `state`
-- `health`
-- `ready`
-- `preparation`
-- `watchdogMode`
-- `lastStartSummary`
-- `sanitizedDiagnostics`
+What it owns:
 
-### `readCodeServerSessionDiagnostics(options)`
+- workbench bootstrap detection
+- shell vs workbench readiness
+- forever-loading and frontend-stall detection
+- websocket diagnostics
+- resource load failures
+- CSP violation capture
+- service-worker diagnostics
+- iframe/embed diagnostics
+- readonly browser guards and blocked-action messaging
 
-Reads the persisted diagnostics snapshot under:
+Related exports:
+
+- `injectCodeServerBrowserBridgeHtml(options)`
+- `parseBrowserDiagnosticEvent(value)`
+- `createBrowserDiagnosticsScript(options)`
+- `createSessionDiagnosticsBridge(options)`
+
+### `createCodeServerProxyAdapter(options?)`
+
+The preferred reverse-proxy owner for generic Node.js hosts.
+
+Main methods:
+
+- `buildForwardedHeaders(options)`
+- `buildWebSocketHeaders(options)`
+- `classifyResponse(options)`
+- `responseRequiresTransform(options)`
+- `handleResponse(options)`
+- `maybeOverrideServiceWorker(pathname)`
+- `persistProfile(runtimeDir?)`
+
+What it owns:
+
+- forwarded headers
+- websocket upgrade headers
+- HTML transform vs passthrough branching
+- transform-time body header stripping
+- proxy failure classification
+- optional service-worker neutralization
+- optional post-response hooks
+- optional profile persist triggers
+
+### `createCodeServerProfilePolicy(options?)`
+
+The preferred profile lifecycle owner.
+
+Main methods:
+
+- `prepareRuntimeProfile(runtimeDir)`
+- `restoreRuntimeProfile(runtimeDir)`
+- `persistRuntimeProfile(runtimeDir)`
+- `schedulePersistRuntimeProfile(runtimeDir)`
+- `readRuntimeSnapshot(runtimeDir)`
+- `describe()`
+
+What it owns:
+
+- allowlisted profile trees
+- restore-if-missing-or-empty
+- persist-if-changed
+- signature comparison
+- readonly runtime defaults
+- settings patch merge
+- optional extension-state handling through `globalStorage`
+- optional persist debounce and inflight coalescing
+
+### `createReadonlySessionPolicy(options?)`
+
+The preferred readonly policy owner.
+
+Preferred host shape:
+
+```ts
+const readonly = createReadonlySessionPolicy({
+  enabled: true,
+  mode: "view",
+});
+```
+
+What it owns:
+
+- normalized readonly mode
+- launch-time readonly workspace treatment
+- settings patch defaults
+- blocked browser commands and shortcuts
+- upload and drag/drop blocking
+- readonly browser banner and messaging
+
+## Session Diagnostics
+
+Each managed session persists:
 
 - `<stateRoot>/sessions/<safe-session-key>/session.json`
 - `<stateRoot>/sessions/<safe-session-key>/diagnostics.json`
 
+Diagnostics snapshots include:
+
+- correlation id
+- backend checkpoints
+- readiness checkpoints
+- normalized failures
+- browser events
+- browser summary
+- stdout and stderr tails when available
+
+`getCodeServerSessionStatus()` returns the latest persisted view plus current readiness probing.
+
+## Browser + Proxy Example
+
+The package does not force a specific HTTP framework. A host can wire the proxy adapter into its own server stack.
+
+```ts
+const upstream = await fetch("http://127.0.0.1:8080/", {
+  headers: proxy.buildForwardedHeaders({
+    forwardedFor: "10.0.0.10",
+    host: "app.example.com",
+    proto: "https",
+  }),
+});
+
+const body = await upstream.text();
+const handled = await proxy.handleResponse({
+  body,
+  headers: Object.fromEntries(upstream.headers.entries()),
+  method: "GET",
+  pathname: "/",
+  statusCode: upstream.status,
+});
+
+// Write handled.statusCode, handled.headers, and handled.body to the client.
+```
+
+For browser diagnostics callbacks or endpoints:
+
+```ts
+const events = browser.parseMessage(requestBody);
+for (const event of events) {
+  browser.bridge.recordEvent(event);
+}
+```
+
+## Profile Policy Example
+
+```ts
+const profile = createCodeServerProfilePolicy({
+  includeExtensionState: true,
+  items: [
+    "settings.json",
+    "keybindings.json",
+    "extensions",
+    "globalStorage",
+  ],
+  persistTo: "/srv/code-server/profiles/demo",
+  restoreFrom: "/srv/code-server/profiles/demo",
+  readonly,
+});
+
+await profile.prepareRuntimeProfile("/srv/code-server/state/sessions/demo/runtime/user-data");
+await profile.persistRuntimeProfile("/srv/code-server/state/sessions/demo/runtime/user-data");
+```
+
+## Migration Guide
+
+The package now prefers high-level ownership APIs over app-side helper glue.
+
+### Replace This
+
+- app-owned session reuse maps, inflight guards, and stale restart checks
+- app-owned browser bootstrap scripts
+- app-owned HTML string rewriting pipelines
+- app-owned proxy HTML vs passthrough branching
+- app-owned readonly browser event interception
+- app-owned profile restore/persist orchestration
+
+### With This
+
+- `createCodeServerSessionManager()`
+- `createCodeServerBrowserBridge()`
+- `createCodeServerProxyAdapter()`
+- `createCodeServerProfilePolicy()`
+- `createReadonlySessionPolicy()`
+
+### Recommended Mapping
+
+- `createBrowserDiagnosticsScript()` -> `createCodeServerBrowserBridge()`
+- `transformCodeServerHtml()` -> `createCodeServerProxyAdapter()` or `injectCodeServerBrowserBridgeHtml()`
+- `buildForwardedHeaders()` and `buildCodeServerWebSocketHeaders()` -> `createCodeServerProxyAdapter()`
+- `syncCodeServerProfile()` and `persistCodeServerProfileIfChanged()` -> `createCodeServerProfilePolicy()`
+- host reuse/restart glue -> `createCodeServerSessionManager()`
+
+### What Stays Low-Level
+
+These exports remain supported for advanced hosts that intentionally want more control:
+
+- `createCodeServerIntegrationPlan()`
+- `createCodeServerLaunchPlan()`
+- `createCodeServerLaunchSpec()`
+- `launchCodeServerProcess()`
+- `createCodeServerSystemdLaunchCommand()`
+- `buildForwardedHeaders()`
+- `buildCodeServerWebSocketHeaders()`
+- `createBrowserDiagnosticsScript()`
+- `transformCodeServerHtml()`
+- `createHtmlInjectionPlan()`
+- `syncCodeServerProfile()`
+- `persistCodeServerProfileIfChanged()`
+
+These are still useful, but they are no longer the preferred starting point for normal host integrations.
+
 ## Preparation APIs
 
-The package now distinguishes install presence from install launchability.
+The package distinguishes install presence from install launchability.
 
-### `getCodeServerReadinessStatus(options?)`
+Main preparation exports:
 
-Returns the current launchability view of the resolved install, including:
+- `getCodeServerReadinessStatus(options?)`
+- `validateCodeServerInstall(options?)`
+- `repairCodeServerInstall(options?)`
+- `ensureCodeServerLaunchable(options?)`
+- `getCodeServerPreparationStatus(options?)`
+- `ensureCodeServerPrepared(options?)`
 
-- launch-critical artifacts
-- nested runtime dependency checks
-- missing critical paths
-- launchable vs repairable vs unrecoverable state
-- watchdog fallback mode
-
-### `validateCodeServerInstall(options?)`
-
-Returns `{ ok, status, diagnostic }` so hosts and CI jobs can fail on incomplete installs without parsing log strings.
-
-### `repairCodeServerInstall(options?)`
-
-Runs package-owned repair actions and returns a structured result with:
-
-- `outcome: "noop" | "repaired" | "partially_repaired" | "unrecoverable"`
-- `actions`
-- `statusBefore`
-- `statusAfter`
-
-### `ensureCodeServerLaunchable(options?)`
-
-Validates the install and attempts repair when needed. This is the preferred preflight API when a host wants one explicit “make it runnable” step.
-
-### `getCodeServerPreparationStatus(options?)`
-
-Checks whether the installed package looks ready to run and reports:
-
-- package root
-- support root
-- bootstrap script path
-- preparation state
-- issues
-- watchdog mode
-
-### `ensureCodeServerPrepared(options?)`
-
-Runs the package-owned bootstrap script when the installation is repairable.
-
-Use this explicitly when a host wants a preflight step. Otherwise the session manager runs it automatically.
-
-## Readiness Targets
-
-The package now treats readiness as a sequence instead of a single open port:
-
-- `tcp`
-- `http`
-- `websocket`
-- `browser-shell`
-- `workbench`
-
-`waitForCodeServerReady()` returns explicit checkpoints. Session startup persists those details so a host can distinguish cases such as “HTTP shell ready but browser bootstrap failed” from “process exited before ready”.
-
-`websocket`, `browser-shell`, and `workbench` readiness can use the browser diagnostics bridge when a host does not want to hardcode product-specific websocket routes.
+Use these when a host wants an explicit preflight step. Otherwise the session manager runs preparation automatically.
 
 ## Launch Planning APIs
 
-The lower-level planning APIs still exist for hosts that want custom execution layers.
+Lower-level planning APIs still exist for advanced integrations:
 
-### `createCodeServerIntegrationPlan(options)`
+- `createCodeServerIntegrationPlan(options)`
+- `createCodeServerLaunchPlan(options)`
+- `createCodeServerLaunchSpec(plan)`
+- `buildCodeServerArgs(options)`
 
-This is the preferred lower-level planning API. It returns:
+Returned plans already include:
 
-- final `command` and `args`
-- final `bindings`
-- `cwd` and `env`
-- preparation status
-- support-root bind suggestions
+- command and args
 - readable and writable path suggestions
-- host-visible and sandbox-visible path lists
-- translated path pairs
+- readonly workspace treatment
+- support-tree binding suggestions
+- translated visible paths
+- direct vs node execution decisions
 
-### `createCodeServerLaunchPlan(options)`
+## Systemd APIs
 
-Compatibility-friendly alias for callers that still want the previous naming. It now routes through the richer integration-plan path.
+Transient systemd support remains available for hosts that need it:
 
-The returned plan already includes final `bindings`, `recommendedReadablePaths`, `recommendedWritablePaths`, and `translatedPaths`, so a host does not need to rebuild support-tree mount decisions itself.
-
-### `createCodeServerLaunchSpec(plan)`
-
-Converts the plan into a smaller execution-oriented shape:
-
-- `command`
-- `args`
-- `cwd`
-- `env`
-- `bindings`
-- `readablePaths`
-- `writablePaths`
-
-## Direct And Systemd Launching
-
-### Direct
-
-```ts
-import {
-  createCodeServerLaunchPlan,
-  launchCodeServerProcess,
-  waitForCodeServerReady,
-} from "@trebired/code-server-kit";
-
-const plan = await createCodeServerLaunchPlan({
-  dataRoot: "/srv/code-server/session-42",
-  workspacePath: "/srv/workspaces/demo",
-});
-
-const handle = await launchCodeServerProcess({ plan });
-
-await waitForCodeServerReady({
-  host: plan.host,
-  port: plan.port,
-  process: handle,
-});
-```
-
-### Session Diagnostics
-
-```ts
-const sessions = createCodeServerSessionManager();
-
-const started = await sessions.start({
-  sanitizer: {
-    pathPrefixes: ["/srv"],
-  },
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-  trustedOrigins: ["https://app.example.com"],
-  workspacePath: "/srv/workspaces/demo",
-});
-
-const diagnostics = await sessions.readDiagnostics({
-  sanitizer: {
-    pathPrefixes: ["/srv"],
-  },
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-});
-
-console.log(started.status.lastStartSummary);
-console.log(diagnostics?.sanitized?.summary);
-```
-
-Persisted diagnostics now include:
-
-- normalized phase
-- stable code
-- retryability
-- hints
-- readiness checkpoints
-- browser events when browser integration is enabled
-
-### Browser Integration
-
-Browser integration is optional but first-class. The package provides generic helpers so hosts do not need to reimplement the fragile frontend instrumentation layer:
-
-- `createBrowserDiagnosticsScript(options)`
-- `browserReadinessPolicy(options)`
-- `parseBrowserDiagnosticEvent(value)`
-- `createHtmlInjectionPlan(options)`
-- `createSessionDiagnosticsBridge(options)`
-
-Typical flow:
-
-1. Create a diagnostics bridge on the server.
-2. Generate an injected browser script.
-3. Insert that script into proxied shell HTML.
-4. Forward emitted browser events into the bridge.
-5. Start the session with `readinessTarget: "browser-shell"` or `"workbench"` and pass the bridge.
-
-The generated script can report generic events such as:
-
-- shell loaded
-- websocket opened
-- workbench mounted
-- bootstrap timeout
-- resource failures
-- CSP violations
-- worker and service-worker issues
-
-### Readonly Sessions
-
-Readonly mode is now planned inside the package rather than copied in each host:
-
-- readonly workspace binding suggestions
-- ephemeral user-data and extensions roots
-- shared readonly settings patch helpers
-- optional browser guard hooks
-
-Relevant helpers:
-
-- `createReadonlySessionPolicy(options)`
-- `DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH`
-
-### Maintainer And CI Tooling
-
-The package now includes higher-level helpers for CI and package maintenance:
-
-- `runCodeServerDoctor()`
-- `runCodeServerSmokeTest()`
-- `explainCodeServerFailure()`
-
-These helpers are intended for validation jobs, reproduction harnesses, and “tell me why this failed” workflows without forcing callers to stitch together the lower-level pieces themselves.
-
-### Systemd
-
-Linux-first transient systemd support is built into the same package and stays explicit.
-
-Relevant APIs:
-
-- `launchCodeServerWithSystemd(options)`
-- `restartCodeServerSystemdUnit(options)`
-- `stopCodeServerSystemdUnit(options)`
-- `readCodeServerSystemdStatus(options)`
-- `readCodeServerSystemdJournal(options)`
-- `summarizeCodeServerSystemdJournal(options)`
-- `extractCodeServerSystemdFailure(options)`
 - `createCodeServerSystemdLaunchCommand(options)`
+- `launchCodeServerWithSystemd(options)`
+- `readCodeServerSystemdStatus(options)`
+- `stopCodeServerSystemdUnit(options)`
+- `summarizeCodeServerSystemdJournal(options)`
 
-`systemd` launches require an explicit scope:
+The session manager uses the same underlying launch plan for direct and systemd flows.
 
-- `scope: "user"`
-- `scope: "system"`
+## Notes
 
-There is no package default.
-
-```ts
-const sessions = createCodeServerSessionManager();
-
-const started = await sessions.start({
-  launchStrategy: "systemd",
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-  systemd: {
-    scope: "user",
-  },
-  trustedOrigins: ["https://app.example.com"],
-  workspacePath: "/srv/workspaces/demo",
-});
-
-console.log(started.status.unitName);
-```
-
-## Diagnostics And Redaction
-
-### `collectCodeServerStartupDiagnostics(options)`
-
-Builds a structured diagnostic object with:
-
-- category
-- code
-- summary
-- machine-readable details
-- launch strategy
-- watchdog mode
-- stderr and stdout tails
-- systemd journal summary
-
-Supported normalized categories include:
-
-- `startup_timeout`
-- `process_exited_before_ready`
-- `systemd_launch_failed`
-- `systemd_unit_failed`
-- `entrypoint_resolution_failed`
-- `missing_runtime_dependency`
-- `preparation_failed`
-- `invalid_configuration`
-
-### `sanitizeCodeServerDiagnostics(diagnostics, options)`
-
-Supports:
-
-- path-prefix redaction
-- exact-value redaction
-- a custom replacer hook
-
-The package only sanitizes when a host asks for it.
-
-## Profile Lifecycle
-
-Profile sync stays allowlist-based instead of copying the whole runtime tree.
-
-Supported items:
-
-- `settings.json`
-- `extensions.json`
-- `keybindings.json`
-- `snippets`
-- `extensions`
-
-Lower-level APIs:
-
-- `createCodeServerProfileSyncPlan(options)`
-- `syncCodeServerProfile(options)`
-- `readCodeServerProfileSnapshot(options)`
-- `readCodeServerProfileSignature(options)`
-- `persistCodeServerProfileIfChanged(options)`
-
-Session-manager integration now handles:
-
-- restore only when runtime profile data is missing or empty by default
-- persistence only when the allowlisted signature changed by default
-- optional extension snapshotting in the signature
-
-```ts
-const sessions = createCodeServerSessionManager();
-
-await sessions.start({
-  profile: {
-    persistTo: "/srv/code-server-profiles/workspace-42",
-    restoreFrom: "/srv/code-server-profiles/workspace-42",
-    snapshotExtensions: true,
-  },
-  sessionKey: "workspace-42",
-  stateRoot: "/srv/code-server-state",
-  trustedOrigins: ["https://app.example.com"],
-  workspacePath: "/srv/workspaces/demo",
-});
-```
-
-## Proxy Helpers
-
-Generic proxy-facing helpers now include:
-
-- `buildForwardedHeaders(options)`
-- `buildCodeServerWebSocketHeaders(options)`
-- `isCodeServerHtmlResponse(options)`
-- `classifyCodeServerProxyFailure(options)`
-
-These helpers stay framework-agnostic and do not add product-specific route rewriting.
-
-## Structured Errors
-
-Examples:
-
-- `CodeServerPreparationError`
-- `CodeServerInvalidConfigurationError`
-- `CodeServerInstallationResolutionError`
-- `CodeServerEntrypointResolutionError`
-- `CodeServerLaunchPlanningError`
-- `CodeServerPortAllocationError`
-- `CodeServerStartupTimeoutError`
-- `CodeServerProcessExitedBeforeReadyError`
-- `CodeServerSessionLifecycleError`
-- `CodeServerSessionReuseConflictError`
-- `CodeServerSystemdLaunchError`
-- `CodeServerSystemdCollisionError`
-- `CodeServerSystemdStatusError`
-- `CodeServerSystemdJournalError`
-
-Use `normalizeCodeServerStartupFailure(error)` when you want one consistent structured startup-failure payload.
-
-## Migration Note
-
-Existing host apps should delete generic glue for:
-
-- reading from `node_modules/code-server/...` directly
-- running `code-server` postinstall repair themselves
-- discovering support roots or remapping entrypoints manually
-- building support-tree read-only bind lists manually
-- translating host paths into sandbox-visible `code-server` paths
-- deduplicating concurrent starts for the same session key
-- comparing profile state before persisting
-- parsing raw startup output into user-facing summaries
-- building websocket proxy headers and classifying common upstream failures
-
-Prefer:
-
-- `createCodeServerSessionManager()`
-- `startCodeServerSession()`
-
-Keep low-level APIs only when you truly need a custom execution layer.
-
-## Direct `code-server` Dependency
-
-None by default.
-
-Host applications only need a separate direct `code-server` dependency when they intentionally override resolution behavior, such as:
-
-- testing against a different installation root
-- pinning a different package copy outside `@trebired/code-server-kit`
-- using custom resolution during advanced development workflows
-
-## Intentionally Deferred
-
-- non-Linux lifecycle orchestration
-- container runtime wrappers
-- host-specific sandbox policy
-- Windows and macOS service-management behavior
-- a stronger watchdog strategy than preparation plus disabled-fallback classification, unless future `code-server` versions expose a cleaner supported switch
+- Linux-first by design.
+- Node.js-first by design.
+- Generic by design.
+- No host route names, repository assumptions, or branding hooks are required.

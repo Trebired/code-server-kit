@@ -8,7 +8,7 @@ import {
   CodeServerLaunchPlanningError,
   CodeServerPortAllocationError,
 } from "./errors.js";
-import { browserReadinessPolicy } from "./browser.js";
+import { browserReadinessPolicy } from "./browser/index.js";
 import { ensureCodeServerLaunchable } from "./preparation.js";
 import { createReadonlySessionPolicy } from "./readonly.js";
 import { resolveCodeServerInstallation } from "./resolve.js";

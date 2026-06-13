@@ -21,6 +21,7 @@ import type {
 const DEFAULT_CODE_SERVER_PROFILE_PATHS: CodeServerProfilePathMap = {
   "extensions": "extensions",
   "extensions.json": "User/extensions.json",
+  "globalStorage": "User/globalStorage",
   "keybindings.json": "User/keybindings.json",
   "settings.json": "User/settings.json",
   "snippets": "User/snippets",
@@ -192,7 +193,7 @@ function createProfileSyncEntry(
   targetDir: string,
   relativePath: string,
 ): CodeServerProfileSyncEntry {
-  const kind = item === "snippets" || item === "extensions"
+  const kind = item === "snippets" || item === "extensions" || item === "globalStorage"
     ? "directory"
     : "file";
 
