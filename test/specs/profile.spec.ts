@@ -6,7 +6,7 @@ import {
   persistCodeServerProfileIfChanged,
   readCodeServerProfileSignature,
   syncCodeServerProfile,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 import { exists, readFile, tempDir, writeFile } from "./helpers.js";
 
 describe("@trebired/code-server-kit profile", () => {

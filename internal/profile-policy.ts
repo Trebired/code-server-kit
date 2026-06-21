@@ -26,60 +26,21 @@ function createCodeServerProfilePolicy(
   options: CodeServerProfilePolicyOptions = {},
 ): CodeServerProfilePolicy {
   const normalized = normalizeProfilePolicyOptions(options);
-  const inflightPersist = new Map<string, Promise<CodeServerProfilePersistResult | null>>();
-  const scheduledPersist = new Map<string, Promise<CodeServerProfilePersistResult | null>>();
-  const inflightPrepare = new Map<string, Promise<CodeServerProfilePrepareResult>>();
+  const state = createProfilePolicyState();
 
   return {
     describe() {
-      return {
-        debounceMs: normalized.debounceMs,
-        hasSettingsPatch: Object.keys(normalized.settingsPatch).length > 0,
-        includeExtensionState: normalized.includeExtensionState,
-        items: [...normalized.items],
-        pathMap: {
-          ...normalized.pathMap,
-        },
-        persistPolicy: normalized.persistPolicy,
-        persistTo: normalized.persistTo,
-        readonly: normalized.readonly,
-        restoreFrom: normalized.restoreFrom,
-        restorePolicy: normalized.restorePolicy,
-        signatureMode: normalized.signatureMode,
-        snapshotExtensions: normalized.snapshotExtensions,
-      };
+      return describeProfilePolicy(normalized);
     },
     async persistRuntimeProfile(runtimeDir) {
-      const key = path.resolve(runtimeDir);
-      const existing = inflightPersist.get(key);
-      if (existing) {
-        return await existing;
-      }
-
-      const promise = persistRuntimeProfileInternal(key, normalized);
-      inflightPersist.set(key, promise);
-
-      try {
-        return await promise;
-      } finally {
-        inflightPersist.delete(key);
-      }
+      return await runProfilePolicyAction(state.inflightPersist, runtimeDir, (key) => {
+        return persistRuntimeProfileInternal(key, normalized);
+      });
     },
     async prepareRuntimeProfile(runtimeDir) {
-      const key = path.resolve(runtimeDir);
-      const existing = inflightPrepare.get(key);
-      if (existing) {
-        return await existing;
-      }
-
-      const promise = prepareRuntimeProfileInternal(key, normalized);
-      inflightPrepare.set(key, promise);
-
-      try {
-        return await promise;
-      } finally {
-        inflightPrepare.delete(key);
-      }
+      return await runProfilePolicyAction(state.inflightPrepare, runtimeDir, (key) => {
+        return prepareRuntimeProfileInternal(key, normalized);
+      });
     },
     async readRuntimeSnapshot(runtimeDir) {
       return await readCodeServerProfileSnapshot({
@@ -93,20 +54,59 @@ function createCodeServerProfilePolicy(
       return await restoreRuntimeProfileInternal(path.resolve(runtimeDir), normalized);
     },
     async schedulePersistRuntimeProfile(runtimeDir) {
-      const key = path.resolve(runtimeDir);
-      const existing = scheduledPersist.get(key);
-      if (existing) {
-        return await existing;
-      }
-
-      const promise = schedulePersistRuntimeProfileInternal(key, normalized, async () => {
-        scheduledPersist.delete(key);
-        return await this.persistRuntimeProfile(key);
+      return await runProfilePolicyAction(state.scheduledPersist, runtimeDir, async (key) => {
+        return await schedulePersistRuntimeProfileInternal(key, normalized, async () => {
+          state.scheduledPersist.delete(key);
+          return await this.persistRuntimeProfile(key);
+        });
       });
-      scheduledPersist.set(key, promise);
-      return await promise;
     },
   };
+}
+
+function createProfilePolicyState() {
+  return {
+    inflightPersist: new Map<string, Promise<CodeServerProfilePersistResult | null>>(),
+    inflightPrepare: new Map<string, Promise<CodeServerProfilePrepareResult>>(),
+    scheduledPersist: new Map<string, Promise<CodeServerProfilePersistResult | null>>(),
+  };
+}
+
+function describeProfilePolicy(policy: ReturnType<typeof normalizeProfilePolicyOptions>) {
+  return {
+    debounceMs: policy.debounceMs,
+    hasSettingsPatch: Object.keys(policy.settingsPatch).length > 0,
+    includeExtensionState: policy.includeExtensionState,
+    items: [...policy.items],
+    pathMap: {
+      ...policy.pathMap,
+    },
+    persistPolicy: policy.persistPolicy,
+    persistTo: policy.persistTo,
+    readonly: policy.readonly,
+    restoreFrom: policy.restoreFrom,
+    restorePolicy: policy.restorePolicy,
+    signatureMode: policy.signatureMode,
+    snapshotExtensions: policy.snapshotExtensions,
+  };
+}
+
+async function runProfilePolicyAction<T>(
+  store: Map<string, Promise<T>>,
+  runtimeDir: string,
+  factory: (key: string) => Promise<T>,
+): Promise<T> {
+  const key = path.resolve(runtimeDir);
+  const existing = store.get(key);
+  if (existing) return await existing;
+
+  const promise = factory(key);
+  store.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    store.delete(key);
+  }
 }
 
 async function prepareRuntimeProfileInternal(

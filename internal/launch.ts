@@ -10,31 +10,58 @@ import type {
 
 async function launchCodeServerProcess(options: LaunchCodeServerProcessOptions): Promise<CodeServerProcessHandle> {
   const plan = options.plan;
+  const env = buildLaunchEnvironment(options);
+  const processState = spawnPlanProcess(options, env);
+  await waitForSpawn(processState.child, plan);
+  return createProcessHandle(plan, options, env, processState);
+}
+
+function buildLaunchEnvironment(options: LaunchCodeServerProcessOptions): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...options.plan.env,
+    ...(options.env ?? {}),
+  };
+}
+
+function spawnPlanProcess(options: LaunchCodeServerProcessOptions, env: NodeJS.ProcessEnv) {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
-  const child = spawn(plan.command, plan.args, {
-    cwd: options.cwd ?? plan.cwd,
-    env: {
-      ...process.env,
-      ...plan.env,
-      ...(options.env ?? {}),
-    },
+  const child = spawn(options.plan.command, options.plan.args, {
+    cwd: options.cwd ?? options.plan.cwd,
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  bindProcessOutput(child, stdoutChunks, stderrChunks, options);
+  return {
+    child,
+    exit: createProcessExitPromise(child),
+    stderrChunks,
+    stdoutChunks,
+  };
+}
+
+function bindProcessOutput(
+  child: ReturnType<typeof spawn>,
+  stdoutChunks: string[],
+  stderrChunks: string[],
+  options: LaunchCodeServerProcessOptions,
+): void {
   child.stdout?.on("data", (chunk) => {
     const text = String(chunk);
     stdoutChunks.push(text);
     options.stdout?.(text);
   });
-
   child.stderr?.on("data", (chunk) => {
     const text = String(chunk);
     stderrChunks.push(text);
     options.stderr?.(text);
   });
+}
 
-  const exit = new Promise<CodeServerProcessExit>((resolve) => {
+function createProcessExitPromise(child: ReturnType<typeof spawn>): Promise<CodeServerProcessExit> {
+  return new Promise((resolve) => {
     child.once("close", (code, signal) => {
       resolve({
         code,
@@ -42,38 +69,43 @@ async function launchCodeServerProcess(options: LaunchCodeServerProcessOptions):
       });
     });
   });
+}
 
+async function waitForSpawn(child: ReturnType<typeof spawn>, plan: CodeServerLaunchPlan): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     child.once("spawn", () => resolve());
     child.once("error", (error) => reject(wrapSpawnError(error, plan)));
   });
+}
 
+function createProcessHandle(
+  plan: CodeServerLaunchPlan,
+  options: LaunchCodeServerProcessOptions,
+  env: NodeJS.ProcessEnv,
+  processState: ReturnType<typeof spawnPlanProcess>,
+): CodeServerProcessHandle {
   return {
     args: [...plan.args],
     bindAddr: plan.bindAddr,
-    child,
+    child: processState.child,
     codeServerPackageRoot: plan.codeServerPackageRoot,
     command: plan.command,
     cwd: options.cwd ?? plan.cwd,
-    env: {
-      ...process.env,
-      ...plan.env,
-      ...(options.env ?? {}),
-    },
-    exit,
+    env,
+    exit: processState.exit,
     extensionsDir: plan.extensionsDir,
     getStderr() {
-      return stderrChunks.join("");
+      return processState.stderrChunks.join("");
     },
     getStdout() {
-      return stdoutChunks.join("");
+      return processState.stdoutChunks.join("");
     },
     host: plan.host,
     kill(signal?: NodeJS.Signals | number) {
-      return child.kill(signal);
+      return processState.child.kill(signal);
     },
     launchMode: plan.launchMode,
-    pid: child.pid,
+    pid: processState.child.pid,
     plan,
     port: plan.port,
     supportRoot: plan.supportRoot,

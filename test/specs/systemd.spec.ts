@@ -10,7 +10,7 @@ import {
   createCodeServerSystemdLaunchCommand,
   extractCodeServerSystemdFailure,
   parseSystemdShowOutput,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
 
 describe("@trebired/code-server-kit systemd", () => {

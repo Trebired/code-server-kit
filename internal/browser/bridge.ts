@@ -13,96 +13,114 @@ import type {
 function createSessionDiagnosticsBridge(
   options: CreateCodeServerSessionDiagnosticsBridgeOptions = {},
 ): CodeServerSessionDiagnosticsBridge {
-  const log = resolveLogger(options.logger, options.loggerAdapter);
-  const events: CodeServerBrowserDiagnosticEvent[] = [];
-  const waiters = new Set<{
-    startedAt: number;
-    target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
-    resolve(value: {
-      elapsedMs: number;
-      event: CodeServerBrowserDiagnosticEvent;
-      target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
-    }): void;
-    reject(error: Error): void;
-    timer: ReturnType<typeof setTimeout>;
-  }>();
+  const state = createBridgeState(options);
 
   return {
-    getEvents: () => [...events],
+    getEvents: () => [...state.events],
     getSnapshot() {
       return {
-        events: [...events],
-        latestEvent: events.length > 0 ? events[events.length - 1] : null,
-        readyTargets: uniqueReadyTargets(events),
+        events: [...state.events],
+        latestEvent: state.events.length > 0 ? state.events[state.events.length - 1] : null,
+        readyTargets: uniqueReadyTargets(state.events),
       };
     },
     recordEvent(event: unknown) {
-      const parsed = parseBrowserDiagnosticEvent(event, options.sanitizer);
-      events.push(parsed);
-      log.info("browser:diagnostic", parsed.summary, {
-        details: parsed.details,
-        level: parsed.level,
-        phase: parsed.phase,
-        type: parsed.type,
-      });
-
-      for (const waiter of [...waiters]) {
-        if (matchesReadinessTarget(waiter.target, parsed)) {
-          clearTimeout(waiter.timer);
-          waiters.delete(waiter);
-          waiter.resolve({
-            elapsedMs: Date.now() - waiter.startedAt,
-            event: parsed,
-            target: waiter.target,
-          });
-          continue;
-        }
-
-        if (isFailureEvent(parsed)) {
-          clearTimeout(waiter.timer);
-          waiters.delete(waiter);
-          waiter.reject(new CodeServerStartupProbeError(parsed.summary, {
-            browserEvent: parsed,
-            phase: parsed.phase,
-          }));
-        }
-      }
-
-      return parsed;
+      return recordBridgeEvent(state, event);
     },
     waitForTarget(target, waitOptions = {}) {
-      const existing = events.find((event) => matchesReadinessTarget(target, event));
-      if (existing) {
-        return Promise.resolve({ elapsedMs: 0, event: existing, target });
-      }
-
-      const failure = events.find((event) => isFailureEvent(event));
-      if (failure) {
-        return Promise.reject(new CodeServerStartupProbeError(failure.summary, {
-          browserEvent: failure,
-          phase: failure.phase,
-        }));
-      }
-
-      return new Promise((resolve, reject) => {
-        const startedAt = Date.now();
-        const timer = setTimeout(() => {
-          waiters.delete(waiter);
-          const classified = classifyCodeServerBrowserFailure(events);
-          reject(new CodeServerStartupProbeError(classified.summary, {
-            browserEvents: [...events],
-            hints: [classified.hint],
-            phase: classified.relevantEvent?.phase ?? "browser-bootstrap",
-            retryable: classified.retryable,
-            target,
-          }));
-        }, waitOptions.timeoutMs ?? browserReadinessPolicy(options.policy).bootstrapTimeoutMs);
-
-        const waiter = { reject, resolve, startedAt, target, timer };
-        waiters.add(waiter);
-      });
+      return waitForBridgeTarget(state, target, waitOptions.timeoutMs);
     },
   };
+}
+
+function createBridgeState(options: CreateCodeServerSessionDiagnosticsBridgeOptions) {
+  return {
+    events: [] as CodeServerBrowserDiagnosticEvent[],
+    log: resolveLogger(options.logger, options.loggerAdapter),
+    options,
+    waiters: new Set<{
+      startedAt: number;
+      target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+      resolve(value: {
+        elapsedMs: number;
+        event: CodeServerBrowserDiagnosticEvent;
+        target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+      }): void;
+      reject(error: Error): void;
+      timer: ReturnType<typeof setTimeout>;
+    }>(),
+  };
+}
+
+function recordBridgeEvent(
+  state: ReturnType<typeof createBridgeState>,
+  event: unknown,
+): CodeServerBrowserDiagnosticEvent {
+  const parsed = parseBrowserDiagnosticEvent(event, state.options.sanitizer);
+  state.events.push(parsed);
+  state.log.info("browser:diagnostic", parsed.summary, {
+    details: parsed.details,
+    level: parsed.level,
+    phase: parsed.phase,
+    type: parsed.type,
+  });
+
+  for (const waiter of [...state.waiters]) {
+    if (matchesReadinessTarget(waiter.target, parsed)) {
+      clearTimeout(waiter.timer);
+      state.waiters.delete(waiter);
+      waiter.resolve({ elapsedMs: Date.now() - waiter.startedAt, event: parsed, target: waiter.target });
+      continue;
+    }
+    if (isFailureEvent(parsed)) {
+      clearTimeout(waiter.timer);
+      state.waiters.delete(waiter);
+      waiter.reject(new CodeServerStartupProbeError(parsed.summary, { browserEvent: parsed, phase: parsed.phase }));
+    }
+  }
+
+  return parsed;
+}
+
+function waitForBridgeTarget(
+  state: ReturnType<typeof createBridgeState>,
+  target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">,
+  timeoutMs?: number,
+) {
+  const existing = state.events.find((event) => matchesReadinessTarget(target, event));
+  if (existing) {
+    return Promise.resolve({ elapsedMs: 0, event: existing, target });
+  }
+
+  const failure = state.events.find((event) => isFailureEvent(event));
+  if (failure) {
+    return Promise.reject(new CodeServerStartupProbeError(failure.summary, {
+      browserEvent: failure,
+      phase: failure.phase,
+    }));
+  }
+
+  return new Promise<{
+    elapsedMs: number;
+    event: CodeServerBrowserDiagnosticEvent;
+    target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+  }>((resolve, reject) => {
+    const startedAt = Date.now();
+    const timer = setTimeout(() => {
+      state.waiters.delete(waiter);
+      const classified = classifyCodeServerBrowserFailure(state.events);
+      reject(new CodeServerStartupProbeError(classified.summary, {
+        browserEvents: [...state.events],
+        hints: [classified.hint],
+        phase: classified.relevantEvent?.phase ?? "browser-bootstrap",
+        retryable: classified.retryable,
+        target,
+      }));
+    }, timeoutMs ?? browserReadinessPolicy(state.options.policy).bootstrapTimeoutMs);
+
+    const waiter = { reject, resolve, startedAt, target, timer };
+    state.waiters.add(waiter);
+  });
 }
 
 function uniqueReadyTargets(events: CodeServerBrowserDiagnosticEvent[]): CodeServerReadinessTarget[] {

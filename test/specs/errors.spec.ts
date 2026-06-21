@@ -5,7 +5,7 @@ import {
   CodeServerInvalidConfigurationError,
   normalizeCodeServerStartupFailure,
   sanitizeCodeServerDiagnostics,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 
 describe("@trebired/code-server-kit errors", () => {
   test("normalizes package errors into structured startup failure payloads", () => {

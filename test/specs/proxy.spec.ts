@@ -9,7 +9,7 @@ import {
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
   normalizeTrustedOrigins,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 
 describe("@trebired/code-server-kit proxy", () => {
   test("builds forwarded headers for reverse-proxy embedding", () => {

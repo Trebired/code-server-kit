@@ -9,7 +9,7 @@ import {
   inspectSessionFailure,
   startCodeServerSession,
   stopCodeServerSession,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 import { createFakeCodeServerPackage, exists, readFile, sleep, tempDir, writeFile } from "./helpers.js";
 
 const LISTENING_ENTRY = `#!/usr/bin/env node

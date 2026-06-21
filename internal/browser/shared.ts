@@ -6,7 +6,7 @@ import type {
   CodeServerSanitizerOptions,
 } from "#gk2pmrelxtj4";
 
-function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+export function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   if (value == null || !Number.isFinite(value) || value <= 0) {
     return fallback;
   }
@@ -67,13 +67,13 @@ function isFailureEvent(event: CodeServerBrowserDiagnosticEvent): boolean {
     || (event.level === "error" && event.type !== "resource-error");
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value
     ? value as Record<string, unknown>
     : {};
 }
 
-function sanitizeText(value: string, sanitizer?: CodeServerSanitizerOptions): string {
+export function sanitizeText(value: string, sanitizer?: CodeServerSanitizerOptions): string {
   if (!sanitizer) return value;
 
   let next = value;
@@ -202,16 +202,13 @@ function escapeHtml(value: string): string {
 }
 
 export {
-  asRecord,
   escapeHtml,
   escapeHtmlAttribute,
   extractRelevantUrl,
   isFailureEvent,
-  normalizePositiveInteger,
   normalizeSelectors,
   parseBrowserDiagnosticEvent,
   parseEmbedMessage,
   parseIncomingBrowserEvents,
   sanitizeDetails,
-  sanitizeText,
 };

@@ -21,34 +21,7 @@ function createBrowserDiagnosticsTransport(
     async deliver(input) {
       const payload = Array.isArray(input) ? input : [input];
       events.push(...payload);
-      const browserWindow = resolveBrowserWindow();
-
-      if (runtime.mode === "memory") {
-        resolveGlobalArray(runtime.arrayName).push(...payload);
-        return;
-      }
-
-      if (runtime.mode === "callback") {
-        const callback = resolveGlobalFunction(runtime.callbackName);
-        if (callback) {
-          await Promise.resolve(callback(payload));
-        }
-        return;
-      }
-
-      if (runtime.mode === "postmessage") {
-        if (browserWindow?.parent && browserWindow.parent !== browserWindow) {
-          browserWindow.parent.postMessage({
-            events: payload,
-            type: runtime.messageType,
-          }, runtime.targetOrigin);
-        }
-        return;
-      }
-
-      if (runtime.endpointUrl && typeof fetch === "function") {
-        await postBrowserDiagnostics(runtime, payload);
-      }
+      await deliverBrowserDiagnostics(runtime, payload);
     },
     getBufferedEvents() {
       return [...events];
@@ -61,6 +34,31 @@ function createBrowserDiagnosticsTransport(
       return parseIncomingBrowserEvents(data, sanitizer);
     },
   };
+}
+
+async function deliverBrowserDiagnostics(
+  runtime: CodeServerBrowserDiagnosticsRuntimeTransport,
+  payload: CodeServerBrowserDiagnosticEvent[],
+): Promise<void> {
+  const browserWindow = resolveBrowserWindow();
+  if (runtime.mode === "memory") {
+    resolveGlobalArray(runtime.arrayName).push(...payload);
+    return;
+  }
+  if (runtime.mode === "callback") {
+    const callback = resolveGlobalFunction(runtime.callbackName);
+    if (callback) await Promise.resolve(callback(payload));
+    return;
+  }
+  if (runtime.mode === "postmessage") {
+    if (browserWindow?.parent && browserWindow.parent !== browserWindow) {
+      browserWindow.parent.postMessage({ events: payload, type: runtime.messageType }, runtime.targetOrigin);
+    }
+    return;
+  }
+  if (runtime.endpointUrl && typeof fetch === "function") {
+    await postBrowserDiagnostics(runtime, payload);
+  }
 }
 
 function normalizeTransportRuntimeConfig(

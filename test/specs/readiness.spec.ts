@@ -8,7 +8,7 @@ import {
   CodeServerStartupTimeoutError,
   createSessionDiagnosticsBridge,
   waitForCodeServerReady,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 import { closeServer, getFreePort, sleep } from "./helpers.js";
 
 describe("@trebired/code-server-kit readiness", () => {

@@ -15,6 +15,44 @@ type CodeServerPackageJson = {
 function resolveCodeServerInstallation(
   options: ResolveCodeServerInstallationOptions = {},
 ): CodeServerInstallation {
+  const resolved = resolveInstallationPaths(options);
+  const statuses = resolveInstallationStatuses(options);
+
+  return {
+    defaultCwd: resolved.packageRoot,
+    defaultEnv: {},
+    entryArgs: [],
+    entryCommand: resolved.entryKind === "node_script" ? process.execPath : resolved.entryPoint,
+    entryKind: resolved.entryKind,
+    entryPoint: resolved.entryPoint,
+    entryRelativePath: resolved.entryRelativePath,
+    packageJsonPath: resolved.packageJsonPath,
+    packageManagerHints: {
+      installCommand: "npm install",
+      packageManager: "npm",
+    },
+    packageRoot: resolved.packageRoot,
+    preparationStatus: statuses.preparationStatus,
+    readinessStatus: statuses.readinessStatus,
+    recommendedReadablePaths: uniquePaths([
+      resolved.packageRoot,
+      resolved.entryPoint,
+      resolved.supportRoot,
+    ]),
+    supportBindings: resolved.supportRoot
+      ? [{
+        access: "read",
+        hostPath: resolved.supportRoot,
+        mountPath: resolved.supportRoot,
+        reason: "code-server support root",
+      }]
+      : [],
+    supportRoot: resolved.supportRoot,
+    version: typeof resolved.packageJson.version === "string" ? resolved.packageJson.version : undefined,
+  };
+}
+
+function resolveInstallationPaths(options: ResolveCodeServerInstallationOptions) {
   const packageJsonPath = resolveCodeServerPackageJsonPath(options.resolveFrom);
   const packageRoot = path.dirname(packageJsonPath);
   const packageJson = readCodeServerPackageJson(packageJsonPath);
@@ -30,49 +68,27 @@ function resolveCodeServerInstallation(
     });
   }
 
-  const supportRoot = resolveSupportRoot(packageRoot);
-  const readinessStatus = getCodeServerReadinessStatus({
-    resolveFrom: options.resolveFrom,
-    strictWatchdog: options.strictWatchdog,
-  });
-  const preparationStatus = getCodeServerPreparationStatus({
-    resolveFrom: options.resolveFrom,
-    strictWatchdog: options.strictWatchdog,
-  });
-
   return {
-    defaultCwd: packageRoot,
-    defaultEnv: {},
-    entryArgs: [],
-    entryCommand: detectEntryKind(entryPoint) === "node_script"
-      ? process.execPath
-      : entryPoint,
     entryKind: detectEntryKind(entryPoint),
     entryPoint,
     entryRelativePath,
+    packageJson,
     packageJsonPath,
-    packageManagerHints: {
-      installCommand: "npm install",
-      packageManager: "npm",
-    },
     packageRoot,
-    preparationStatus,
-    readinessStatus,
-    recommendedReadablePaths: uniquePaths([
-      packageRoot,
-      entryPoint,
-      supportRoot,
-    ]),
-    supportBindings: supportRoot
-      ? [{
-        access: "read",
-        hostPath: supportRoot,
-        mountPath: supportRoot,
-        reason: "code-server support root",
-      }]
-      : [],
-    supportRoot,
-    version: typeof packageJson.version === "string" ? packageJson.version : undefined,
+    supportRoot: resolveSupportRoot(packageRoot),
+  };
+}
+
+function resolveInstallationStatuses(options: ResolveCodeServerInstallationOptions) {
+  return {
+    preparationStatus: getCodeServerPreparationStatus({
+      resolveFrom: options.resolveFrom,
+      strictWatchdog: options.strictWatchdog,
+    }),
+    readinessStatus: getCodeServerReadinessStatus({
+      resolveFrom: options.resolveFrom,
+      strictWatchdog: options.strictWatchdog,
+    }),
   };
 }
 

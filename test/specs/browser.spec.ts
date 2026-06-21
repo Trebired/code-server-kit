@@ -15,7 +15,7 @@ import {
   parseBrowserDiagnosticEvent,
   summarizeCodeServerBrowserDiagnostics,
   transformCodeServerHtml,
-} from "../../src/index.js";
+} from "#c0ucu2gxeffq";
 
 describe("@trebired/code-server-kit browser", () => {
   test("builds a richer browser diagnostics script", () => {
