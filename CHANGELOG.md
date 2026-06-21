@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1
+
+- enforce the package `tb.code-discipline.ts` policy across the internal runtime tree, including import sync, folderization, file-size cleanup, and smaller session/planning/preparation/proxy/readiness/systemd/type modules
+- reduce internal duplication and split oversized implementation files without changing the public `@trebired/code-server-kit` API shape
+
 ## 1.3.0
 
 - expand browser integration into higher-level `createCodeServerBrowserIntegration()`, `transformCodeServerHtml()`, `createBrowserDiagnosticsTransport()`, and `createCodeServerEmbedController()` APIs so hosts can delete more custom `code-server` frontend glue
