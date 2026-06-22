@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2
+
+- fixed the packed package metadata so `main`, `types`, and package-private alias imports resolve to built files that actually exist in the published tarball
+- added a publish-preparation step that promotes public `dist/src` entrypoints into `dist`, rewrites compiled alias imports to built relative paths, and rewrites packed `package.json` imports during `npm pack` and `npm publish`
+- added explicit pack verification that inspects the tarball and smoke-tests install, typecheck, and runtime import from a clean temporary consumer project
+
 ## 1.3.1
 
 - enforce the package `tb.code-discipline.ts` policy across the internal runtime tree, including import sync, folderization, file-size cleanup, and smaller session/planning/preparation/proxy/readiness/systemd/type modules
