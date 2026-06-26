@@ -139,7 +139,7 @@ function validatePackedImports(packageJson, tarballEntries) {
       continue;
     }
 
-    if (target.includes("./src/") || target.includes("./internal/")) {
+    if (target.includes("./src/")) {
       throw new Error(`Packed imports entry ${alias} still points at source path ${target}.`);
     }
 

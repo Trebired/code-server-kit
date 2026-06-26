@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+- move the implementation tree under `src/` and remove the old `internal/` source root so the repository structure matches the actual package code layout
+- update build, pack, alias-rewrite, and code-discipline tooling to publish directly from `src/` without the extra internal indirection
+
 ## 1.4.0
 
 - strengthen readonly sessions into a layered package capability with broader blocked command defaults, command-URI interception, writable-in-session promotion blocking, and richer browser-side guard diagnostics

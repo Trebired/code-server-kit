@@ -33,7 +33,6 @@ async function main() {
 async function prepareDist() {
   const packageJson = await readPackageJson();
   await promotePublicDistFiles();
-  await promotePublicRootEntrypoint();
   const files = await collectDistFiles();
 
   await Promise.all(files.map(async (filePath) => {
@@ -76,13 +75,6 @@ async function promotePublicDistFiles() {
     force: true,
     recursive: true,
   });
-}
-
-async function promotePublicRootEntrypoint() {
-  await fs.writeFile(path.join(distDir, "index.js"), 'export * from "./internal/index.js";\n');
-  await fs.writeFile(path.join(distDir, "index.d.ts"), 'export * from "./internal/index.js";\n');
-  await fs.rm(path.join(distDir, "index.js.map"), { force: true });
-  await fs.rm(path.join(distDir, "index.d.ts.map"), { force: true });
 }
 
 async function collectDistFiles() {
@@ -142,10 +134,6 @@ function resolvePublishedImportTarget(target) {
     return `./dist/${replaceSourceExtension(normalized.slice(4))}`;
   }
 
-  if (normalized.startsWith("internal/")) {
-    return `./dist/internal/${replaceSourceExtension(normalized.slice(9))}`;
-  }
-
   return null;
 }
 
@@ -154,10 +142,6 @@ function resolveCompiledTarget(target) {
 
   if (normalized.startsWith("src/")) {
     return path.join(distDir, replaceSourceExtension(normalized.slice(4)));
-  }
-
-  if (normalized.startsWith("internal/")) {
-    return path.join(distDir, "internal", replaceSourceExtension(normalized.slice(9)));
   }
 
   return null;

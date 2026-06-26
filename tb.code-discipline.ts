@@ -31,15 +31,15 @@ export default {
     dry: {
       helpers: [
         {
-          from: "./internal/browser/shared.ts",
+          from: "./src/browser/shared.ts",
           exportName: "normalizePositiveInteger",
         },
         {
-          from: "./internal/browser/shared.ts",
+          from: "./src/browser/shared.ts",
           exportName: "asRecord",
         },
         {
-          from: "./internal/browser/shared.ts",
+          from: "./src/browser/shared.ts",
           exportName: "sanitizeText",
         },
       ],
