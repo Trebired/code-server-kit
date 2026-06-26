@@ -60,6 +60,7 @@ function buildCodeServerLaunchSpec(plan: CodeServerLaunchPlan): CodeServerLaunch
       ...plan.env,
     },
     readablePaths: [...plan.recommendedReadablePaths],
+    readonly: plan.readonly,
     writablePaths: [...plan.recommendedWritablePaths],
   };
 }

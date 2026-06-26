@@ -96,10 +96,30 @@ type CodeServerBrowserDiagnosticType =
   | "custom";
 type CodeServerBrowserDiagnosticLevel = "info" | "warn" | "error";
 type CodeServerReadonlyPolicyMode = "off" | "readonly" | "view";
+type CodeServerReadonlyFilesystemMode = "auto" | "off" | "require";
+type CodeServerReadonlyFilesystemBoundary = "bubblewrap" | "none" | "systemd";
 type CodeServerBrowserDiagnosticsTransportMode = "memory" | "callback" | "postmessage" | "http-post";
 type CodeServerEmbedState = "idle" | "loading" | "ready" | "failed" | "stalled";
 type CodeServerEmbedMessageType = "status" | "ready" | "failure" | "visibility" | "still-loading" | "theme";
-type CodeServerReadonlyBrowserActionKind = "command" | "shortcut" | "label" | "selector" | "drop" | "upload";
+type CodeServerReadonlyBrowserActionKind =
+  | "beforeinput"
+  | "command"
+  | "command-uri"
+  | "drop"
+  | "label"
+  | "paste"
+  | "selector"
+  | "shortcut"
+  | "upload";
+type CodeServerReadonlyBrowserActionSource =
+  | "banner"
+  | "command-palette"
+  | "context-menu"
+  | "keyboard"
+  | "link"
+  | "notification"
+  | "unknown"
+  | "widget";
 type CodeServerBrowserFailureCategory =
   | "shell-loaded-but-workbench-never-mounted"
   | "websocket-ready-but-frontend-stalled"
@@ -149,6 +169,9 @@ export type {
   CodeServerReadinessState,
   CodeServerReadinessTarget,
   CodeServerReadonlyBrowserActionKind,
+  CodeServerReadonlyBrowserActionSource,
+  CodeServerReadonlyFilesystemBoundary,
+  CodeServerReadonlyFilesystemMode,
   CodeServerReadonlyPolicyMode,
   CodeServerRepairOutcome,
   CodeServerSessionHealth,

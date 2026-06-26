@@ -9,6 +9,7 @@ import type {
   CodeServerKitLoggerAdapter,
   CodeServerLifecyclePhase,
   CodeServerReadinessTarget,
+  CodeServerReadonlyBrowserActionSource,
 } from "./core.js";
 import type { CodeServerReadonlyBrowserActionKind } from "./core.js";
 import type { CodeServerReadonlyInput, CodeServerReadonlyPolicy } from "./preparation.js";
@@ -34,10 +35,14 @@ type CodeServerBrowserDiagnosticEvent = {
 };
 
 type CodeServerReadonlyBrowserAction = {
+  attributeName?: string;
   commandId?: string;
+  commandUri?: string;
+  href?: string;
   kind: CodeServerReadonlyBrowserActionKind;
   label?: string;
   selector?: string;
+  source?: CodeServerReadonlyBrowserActionSource;
   shortcut?: string;
 };
 

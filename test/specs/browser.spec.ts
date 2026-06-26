@@ -40,6 +40,8 @@ describe("@trebired/code-server-kit browser", () => {
     expect(script).toContain("resource-mime-mismatch");
     expect(script).toContain("iframe-timeout");
     expect(script).toContain("readonly browser policy blocked an action");
+    expect(script).toContain("command URI");
+    expect(script).toContain("patchReadonlyLinkClicks");
     expect(script).toContain("https://example.test/diagnostics");
     expect(script).toContain("theme synchronized");
   });
@@ -149,9 +151,30 @@ describe("@trebired/code-server-kit browser", () => {
     });
 
     expect(policy.browserGuards.blockUpload).toBe(true);
+    expect(policy.browserGuards.blockCommandLinks).toBe(true);
+    expect(policy.filesystem.mode).toBe("auto");
     expect(commandBlock.blocked).toBe(true);
     expect(shortcutBlock.blocked).toBe(true);
     expect(shortcutBlock.reason).toContain("shortcut");
+  });
+
+  test("blocks command URI links and writable-session promotion flows", () => {
+    const policy = createReadonlyBrowserPolicy(true);
+    const commandUriBlock = evaluateReadonlyBrowserAction(policy, {
+      href: "command:workbench.action.files.setActiveEditorWriteableInSession",
+      kind: "command-uri",
+      source: "notification",
+    });
+    const writablePromotionBlock = evaluateReadonlyBrowserAction(policy, {
+      commandId: "workbench.action.files.toggleActiveEditorReadonlyInSession",
+      kind: "command",
+      source: "widget",
+    });
+
+    expect(commandUriBlock.blocked).toBe(true);
+    expect(commandUriBlock.reason).toContain("command URI");
+    expect(writablePromotionBlock.blocked).toBe(true);
+    expect(writablePromotionBlock.reason).toContain("blocked");
   });
 
   test("creates a high-level browser bridge with readonly view mode", () => {

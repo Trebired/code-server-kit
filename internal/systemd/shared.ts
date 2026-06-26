@@ -53,6 +53,12 @@ function createCodeServerSystemdLaunchCommand(options: CodeServerSystemdLaunchOp
 
 function buildSystemdPathProperties(spec: CodeServerLaunchSpec): string[] {
   const properties: string[] = [];
+  if (spec.readonly.enabled && spec.readonly.filesystem.mode !== "off") {
+    properties.push("NoNewPrivileges=yes");
+    properties.push("PrivateTmp=yes");
+    properties.push("ProtectSystem=strict");
+    properties.push("ReadOnlyPaths=/");
+  }
   for (const binding of spec.bindings) {
     properties.push(
       `${binding.access === "write" ? "BindPaths" : "BindReadOnlyPaths"}=${formatSystemdBinding(binding.hostPath, binding.mountPath)}`,

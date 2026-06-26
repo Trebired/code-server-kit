@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+- strengthen readonly sessions into a layered package capability with broader blocked command defaults, command-URI interception, writable-in-session promotion blocking, and richer browser-side guard diagnostics
+- add readonly filesystem policy options with `filesystem.mode: "auto" | "require" | "off"` plus per-plan/session readonly enforcement reporting so hosts can see when direct launches are hard-enforced vs degraded
+- harden direct readonly launches with automatic `bubblewrap` wrapping when available and stronger transient-systemd filesystem protections for systemd launches
+- expand readonly coverage and regressions across browser, launch, systemd, and session tests so hosts get stronger out-of-the-box view-only behavior without app-specific patches
+
 ## 1.3.2
 
 - fixed the packed package metadata so `main`, `types`, and package-private alias imports resolve to built files that actually exist in the published tarball

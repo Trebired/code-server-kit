@@ -394,6 +394,9 @@ describe("@trebired/code-server-kit session", () => {
     });
 
     const result = await startCodeServerSession({
+      env: {
+        PATH: "",
+      },
       readonly: true,
       resolveFrom: root,
       sessionKey: "readonly",
@@ -402,6 +405,11 @@ describe("@trebired/code-server-kit session", () => {
     });
 
     expect(readFile(pathFrom(result.status.userDataDir), "User/settings.json")).toContain("\"update.mode\": \"none\"");
+    expect(result.diagnostics?.summary.readonlyEnforcement).toMatchObject({
+      available: false,
+      boundary: "none",
+      hardReadonly: false,
+    });
 
     await stopCodeServerSession({
       sessionKey: "readonly",

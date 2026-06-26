@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
 import { CodeServerBinaryNotFoundError } from "./errors.js";
+import { buildDirectReadonlyLaunch } from "./readonly-launch.js";
 import type {
   CodeServerLaunchPlan,
   CodeServerProcessExit,
@@ -27,7 +28,8 @@ function buildLaunchEnvironment(options: LaunchCodeServerProcessOptions): NodeJS
 function spawnPlanProcess(options: LaunchCodeServerProcessOptions, env: NodeJS.ProcessEnv) {
   const stdoutChunks: string[] = [];
   const stderrChunks: string[] = [];
-  const child = spawn(options.plan.command, options.plan.args, {
+  const resolvedLaunch = buildDirectReadonlyLaunch(options.plan, env);
+  const child = spawn(resolvedLaunch.command, resolvedLaunch.args, {
     cwd: options.cwd ?? options.plan.cwd,
     env,
     stdio: ["ignore", "pipe", "pipe"],

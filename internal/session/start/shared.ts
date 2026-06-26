@@ -4,6 +4,7 @@ import type {
   CodeServerProcessHandle,
   CodeServerProfilePolicy,
   CodeServerReadyResult,
+  CodeServerReadonlyFilesystemEnforcement,
   CodeServerSessionBackendCheckpoint,
   CodeServerSessionBrowserOptions,
   CodeServerSessionRecord,
@@ -30,6 +31,7 @@ type SessionStartRuntime = {
   browserBridge: CodeServerSessionBrowserOptions["bridge"] | undefined;
   correlationId: string;
   launchStrategy: CodeServerLaunchStrategy;
+  readonlyFilesystem: CodeServerReadonlyFilesystemEnforcement;
   preparation: CodeServerPreparationStatus;
   profilePolicy: CodeServerProfilePolicy | null;
   readinessTarget: CodeServerSessionRecord["readinessTarget"];

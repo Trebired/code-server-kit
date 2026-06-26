@@ -27,10 +27,10 @@
         "./internal/browser/script.ts"
       ],
       "#1fwnycc9wdnp": [
-        "./src/preparation.ts"
+        "./internal/preparation.ts"
       ],
       "#1w2dnmpa02qt": [
-        "./src/browser/transport.ts"
+        "./internal/browser/transport.ts"
       ],
       "#26wmro5cjil4": [
         "./internal/session/io.ts"
@@ -42,16 +42,16 @@
         "./internal/session/manager.ts"
       ],
       "#37ar8glh8po5": [
-        "./src/readiness.ts"
+        "./internal/readiness.ts"
       ],
       "#3c8d8166992a": [
         "./internal/types.ts"
       ],
       "#3gget4ysfg9u": [
-        "./src/browser/injection-plan.ts"
+        "./internal/browser/injection-plan.ts"
       ],
       "#3nojkzzzf31b": [
-        "./src/readonly.ts"
+        "./internal/readonly.ts"
       ],
       "#4a168ae26562": [
         "./internal/profile-policy.ts"
@@ -87,10 +87,10 @@
         "./internal/session/shared.ts"
       ],
       "#5ps7a4d8ewcy": [
-        "./src/browser/bridge.ts"
+        "./internal/browser/bridge.ts"
       ],
       "#5qjg1rhtmudt": [
-        "./src/browser/policy.ts"
+        "./internal/browser/policy.ts"
       ],
       "#659mwpcvj7f2": [
         "./internal/session/start/helpers.ts"
@@ -129,7 +129,7 @@
         "./internal/browser/integration.ts"
       ],
       "#9a5wgy2qp98y": [
-        "./src/diagnostics.ts"
+        "./internal/diagnostics.ts"
       ],
       "#9cdb4ebec7ac": [
         "./internal/readiness.ts"
@@ -141,13 +141,13 @@
         "./internal/types/session.ts"
       ],
       "#9ou2olnossyi": [
-        "./src/resolve.ts"
+        "./internal/resolve.ts"
       ],
       "#aa29012a0d3a": [
         "./internal/session.ts"
       ],
       "#ab9oxifovb9r": [
-        "./src/browser/constants.ts"
+        "./internal/browser/constants.ts"
       ],
       "#ad2fd7ec5e18": [
         "./internal/readonly.ts"
@@ -162,7 +162,7 @@
         "./internal/resolve.ts"
       ],
       "#b68ou0db9sz2": [
-        "./src/session.ts"
+        "./internal/session.ts"
       ],
       "#b6bd57e100f1": [
         "./internal/spec.ts"
@@ -171,10 +171,10 @@
         "./internal/browser/injection-plan.ts"
       ],
       "#bh31t0u3otoo": [
-        "./src/proxy.ts"
+        "./internal/proxy.ts"
       ],
       "#c0ucu2gxeffq": [
-        "./src/index.ts"
+        "./internal/index.ts"
       ],
       "#cc71dnq57ja6": [
         "./internal/preparation/runtime.ts"
@@ -195,13 +195,13 @@
         "./internal/browser/transport.ts"
       ],
       "#e5tukcrc5ejl": [
-        "./src/profile.ts"
+        "./internal/profile.ts"
       ],
       "#ebe51631bc41": [
         "./internal/backend/utils/normalize.ts"
       ],
       "#eo26tqo2krmq": [
-        "./src/doctor.ts"
+        "./internal/doctor.ts"
       ],
       "#eyal9dswl2j7": [
         "./internal/types/core.ts"
@@ -219,10 +219,10 @@
         "./internal/index.ts"
       ],
       "#g4t95lolryav": [
-        "./src/systemd.ts"
+        "./internal/systemd.ts"
       ],
       "#gk2pmrelxtj4": [
-        "./src/types.ts"
+        "./internal/types.ts"
       ],
       "#hyt963conza2": [
         "./internal/systemd/shared.ts"
@@ -234,7 +234,7 @@
         "./internal/session/status.ts"
       ],
       "#jn3odgd60xgo": [
-        "./src/spec.ts"
+        "./internal/spec.ts"
       ],
       "#jn8rn7s5gfoe": [
         "./internal/types/browser.ts"
@@ -243,10 +243,10 @@
         "./src/backend/utils/normalize.ts"
       ],
       "#liy2c4thlucn": [
-        "./src/package-resolution.ts"
+        "./internal/package-resolution.ts"
       ],
       "#lmlzmok39wnd": [
-        "./src/browser/classification.ts"
+        "./internal/browser/classification.ts"
       ],
       "#p18hxzvey9jc": [
         "./internal/proxy/runtime.ts"
@@ -261,7 +261,7 @@
         "./tb.code-discipline.ts"
       ],
       "#qmc7jsjqutwr": [
-        "./src/browser/integration.ts"
+        "./internal/browser/integration.ts"
       ],
       "#rd2k1ce75dlz": [
         "./internal/preparation/readiness.ts"
@@ -273,7 +273,7 @@
         "./internal/types/proxy.ts"
       ],
       "#sm030wd0nb8l": [
-        "./src/errors.ts"
+        "./internal/errors.ts"
       ],
       "#tbm8v1j8sm4b": [
         "./internal/types/preparation.ts"
@@ -282,13 +282,13 @@
         "./internal/session/start/runtime.ts"
       ],
       "#uazx4xw0etnl": [
-        "./src/launch.ts"
+        "./internal/launch.ts"
       ],
       "#uq0s0ibqwdcp": [
         "./internal/readiness/probes.ts"
       ],
       "#vaisolxtfcbb": [
-        "./src/plan.ts"
+        "./internal/plan.ts"
       ],
       "#vbzbeb8hf107": [
         "./internal/readiness/runtime.ts"
@@ -297,28 +297,28 @@
         "./internal/session/start/shared.ts"
       ],
       "#veaayxgefe49": [
-        "./src/browser/html.ts"
+        "./internal/browser/html.ts"
       ],
       "#vkjmsr2fqefi": [
-        "./src/browser/index.ts"
+        "./internal/browser/index.ts"
       ],
       "#w6d48kobjs1d": [
         "./src/backend/utils/object.ts"
       ],
       "#wowfqgfn6x8a": [
-        "./src/browser/embed.ts"
+        "./internal/browser/embed.ts"
       ],
       "#x0glhnlu9a7x": [
-        "./src/logging.ts"
+        "./internal/logging.ts"
       ],
       "#x84akww3228z": [
-        "./src/browser/script.ts"
+        "./internal/browser/script.ts"
       ],
       "#y0baur988skz": [
-        "./src/browser/shared.ts"
+        "./internal/browser/shared.ts"
       ],
       "#z8t2hnz3v8sd": [
-        "./src/profile-policy.ts"
+        "./internal/profile-policy.ts"
       ],
       "#zzif9tivdlwc": [
         "./internal/types/systemd.ts"

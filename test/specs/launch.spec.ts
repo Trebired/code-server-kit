@@ -10,7 +10,7 @@ import {
   launchCodeServerProcess,
   resolveCodeServerInstallation,
 } from "#c0ucu2gxeffq";
-import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
+import { createFakeCodeServerPackage, readFile, tempDir, writeFile } from "./helpers.js";
 
 describe("@trebired/code-server-kit launch", () => {
   test("builds a richer node launch plan that host apps can feed into their own execution layer", async () => {
@@ -166,6 +166,9 @@ describe("@trebired/code-server-kit launch", () => {
 
     const plan = await createCodeServerLaunchPlan({
       dataRoot: "/tmp/code-server/readonly-session",
+      env: {
+        PATH: "",
+      },
       readonly: true,
       resolveFrom: root,
       stateRoot: "/tmp/code-server-state",
@@ -181,6 +184,29 @@ describe("@trebired/code-server-kit launch", () => {
     });
     expect(plan.sandbox.readonly.enabled).toBe(true);
     expect(plan.sandbox.supportMountTargets).toContain(path.join(plan.installation.packageRoot, "lib/vscode"));
+    expect(plan.readonlyEnforcement.directFilesystem.available).toBe(false);
+    expect(plan.readonlyEnforcement.systemdFilesystem.hardReadonly).toBe(true);
+  });
+
+  test("detects bubblewrap for harder local readonly enforcement", async () => {
+    const root = tempDir();
+    const fakeBin = tempDir();
+    createFakeCodeServerPackage(root);
+    writeFile(fakeBin, "bwrap", "#!/usr/bin/env sh\nexit 0\n", 0o755);
+
+    const plan = await createCodeServerLaunchPlan({
+      dataRoot: "/tmp/code-server/readonly-direct",
+      env: {
+        PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      },
+      readonly: true,
+      resolveFrom: root,
+      workspacePath: "/srv/workspaces/demo",
+    });
+
+    expect(plan.readonlyEnforcement.directFilesystem.available).toBe(true);
+    expect(plan.readonlyEnforcement.directFilesystem.boundary).toBe("bubblewrap");
+    expect(plan.readonlyEnforcement.directFilesystem.command).toContain("bwrap");
   });
 
   test("can prefer direct launch mode when the resolved entrypoint is executable", async () => {
@@ -297,8 +323,12 @@ describe("@trebired/code-server-kit launch", () => {
         readinessStatus: null as any,
         readonly: {
           browserGuards: {
+            blockBeforeInput: false,
+            blockCommandLinks: false,
             blockDragAndDrop: false,
+            blockPaste: false,
             blockUpload: false,
+            blockedCommandLinkSchemes: [],
             blockedSelectors: [],
             blockedUiLabels: [],
             readonlyMessage: "This is a readonly session.",
@@ -309,8 +339,43 @@ describe("@trebired/code-server-kit launch", () => {
           blockedCommandSubstrings: [],
           blockedShortcuts: [],
           enabled: false,
+          filesystem: {
+            allowHostTempDir: false,
+            extraWritablePaths: [],
+            mode: "off",
+          },
           mode: "off",
           settingsPatch: {},
+        },
+        readonlyEnforcement: {
+          browser: {
+            blocksCommandLinks: false,
+            blocksDragAndDrop: false,
+            blocksPaste: false,
+            blocksUpload: false,
+            blocksWritableSessionPromotions: false,
+            defaultActionSource: "unknown",
+          },
+          directFilesystem: {
+            available: false,
+            boundary: "none",
+            command: null,
+            hardReadonly: false,
+            required: false,
+            summary: "Readonly filesystem enforcement is disabled.",
+            warnings: [],
+            writablePaths: [],
+          },
+          systemdFilesystem: {
+            available: false,
+            boundary: "systemd",
+            command: null,
+            hardReadonly: false,
+            required: false,
+            summary: "Readonly filesystem enforcement is disabled.",
+            warnings: [],
+            writablePaths: [],
+          },
         },
         recommendedReadablePaths: ["/tmp/fake"],
         recommendedWritablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
@@ -328,8 +393,12 @@ describe("@trebired/code-server-kit launch", () => {
           readablePaths: [],
           readonly: {
             browserGuards: {
+              blockBeforeInput: false,
+              blockCommandLinks: false,
               blockDragAndDrop: false,
+              blockPaste: false,
               blockUpload: false,
+              blockedCommandLinkSchemes: [],
               blockedSelectors: [],
               blockedUiLabels: [],
               readonlyMessage: "This is a readonly session.",
@@ -340,6 +409,11 @@ describe("@trebired/code-server-kit launch", () => {
             blockedCommandSubstrings: [],
             blockedShortcuts: [],
             enabled: false,
+            filesystem: {
+              allowHostTempDir: false,
+              extraWritablePaths: [],
+              mode: "off",
+            },
             mode: "off",
             settingsPatch: {},
           },
@@ -371,5 +445,219 @@ describe("@trebired/code-server-kit launch", () => {
     expect(handle.getStdout()).toContain("ready");
     expect(handle.getStderr()).toContain("warn");
     expect(handle.plan.env.TB_CHILD).toBe("1");
+  });
+
+  test("wraps readonly direct launches with bubblewrap when available", async () => {
+    const root = tempDir();
+    const fakeBin = tempDir();
+    const argsLogRoot = tempDir();
+    createFakeCodeServerPackage(root);
+    writeFile(
+      fakeBin,
+      "bwrap",
+      [
+        "#!/usr/bin/env bash",
+        "set -eu",
+        "printf '%s\\n' \"$@\" > \"$TB_BWRAP_ARGS_LOG\"",
+        "while [ \"$1\" != \"--\" ]; do shift; done",
+        "shift",
+        "exec \"$@\"",
+        "",
+      ].join("\n"),
+      0o755,
+    );
+
+    const argsLog = path.join(argsLogRoot, "bwrap-args.txt");
+    const handle = await launchCodeServerProcess({
+      env: {
+        PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+        TB_BWRAP_ARGS_LOG: argsLog,
+      },
+      plan: {
+        args: [
+          "-e",
+          'process.stdout.write("ready\\n"); process.stderr.write("warn\\n");',
+        ],
+        bindAddr: "127.0.0.1:1",
+        bindings: [],
+        browser: {
+          policy: {
+            bootstrapTimeoutMs: 20_000,
+            target: "workbench",
+            workbenchSelectors: [".monaco-workbench", ".workbench"],
+          },
+        },
+        codeServerPackageRoot: "/tmp/fake",
+        command: process.execPath,
+        cwd: process.cwd(),
+        entryKind: "node_script",
+        entryPoint: process.execPath,
+        env: {
+          PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+          TB_CHILD: "1",
+        },
+        extensionsDir: "/tmp/fake/extensions",
+        host: "127.0.0.1",
+        installation: {
+          defaultCwd: "/tmp/fake",
+          defaultEnv: {},
+          entryArgs: [],
+          entryCommand: process.execPath,
+          entryKind: "node_script",
+          entryPoint: process.execPath,
+          entryRelativePath: process.execPath,
+          packageJsonPath: "/tmp/fake/package.json",
+          packageManagerHints: {
+            installCommand: "npm install",
+            packageManager: "npm",
+          },
+          packageRoot: "/tmp/fake",
+          preparationStatus: {
+            artifacts: [],
+            checkedAt: "",
+            issues: [],
+            launchable: true,
+            packageRoot: "/tmp/fake",
+            postinstallScriptPath: null,
+            readiness: null as any,
+            state: "prepared",
+            supportRoot: null,
+            watchdogIssue: null,
+            watchdogMode: "native",
+          },
+          readinessStatus: null as any,
+          recommendedReadablePaths: ["/tmp/fake"],
+          supportBindings: [],
+          supportRoot: null,
+          version: "4.117.0",
+        },
+        launchMode: "node",
+        port: 1,
+        preparationStatus: {
+          artifacts: [],
+          checkedAt: "",
+          issues: [],
+          launchable: true,
+          packageRoot: "/tmp/fake",
+          postinstallScriptPath: null,
+          readiness: null as any,
+          state: "prepared",
+          supportRoot: null,
+          watchdogIssue: null,
+          watchdogMode: "native",
+        },
+        readinessStatus: null as any,
+        readonly: {
+          browserGuards: {
+            blockBeforeInput: false,
+            blockCommandLinks: true,
+            blockDragAndDrop: false,
+            blockPaste: false,
+            blockUpload: false,
+            blockedCommandLinkSchemes: ["command"],
+            blockedSelectors: [],
+            blockedUiLabels: [],
+            readonlyMessage: "This is a readonly session.",
+            showBanner: false,
+          },
+          blockedCommandIds: [],
+          blockedCommandPrefixes: [],
+          blockedCommandSubstrings: [],
+          blockedShortcuts: [],
+          enabled: true,
+          filesystem: {
+            allowHostTempDir: false,
+            extraWritablePaths: [],
+            mode: "auto",
+          },
+          mode: "view",
+          settingsPatch: {},
+        },
+        readonlyEnforcement: {
+          browser: {
+            blocksCommandLinks: true,
+            blocksDragAndDrop: false,
+            blocksPaste: false,
+            blocksUpload: false,
+            blocksWritableSessionPromotions: false,
+            defaultActionSource: "unknown",
+          },
+          directFilesystem: {
+            available: true,
+            boundary: "bubblewrap",
+            command: path.join(fakeBin, "bwrap"),
+            hardReadonly: true,
+            required: false,
+            summary: "Direct launches can enforce a readonly write barrier with bubblewrap.",
+            warnings: [],
+            writablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
+          },
+          systemdFilesystem: {
+            available: true,
+            boundary: "systemd",
+            command: "systemd-run",
+            hardReadonly: true,
+            required: false,
+            summary: "systemd launches can enforce a readonly write barrier with transient unit filesystem protections.",
+            warnings: [],
+            writablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
+          },
+        },
+        recommendedReadablePaths: ["/tmp/fake"],
+        recommendedWritablePaths: ["/tmp/fake/user-data", "/tmp/fake/extensions"],
+        sandbox: {
+          bindings: [],
+          collisionSafeName: null,
+          ephemeralStateRoot: null,
+          readablePaths: [],
+          readonly: {
+            browserGuards: {
+              blockBeforeInput: false,
+              blockCommandLinks: true,
+              blockDragAndDrop: false,
+              blockPaste: false,
+              blockUpload: false,
+              blockedCommandLinkSchemes: ["command"],
+              blockedSelectors: [],
+              blockedUiLabels: [],
+              readonlyMessage: "This is a readonly session.",
+              showBanner: false,
+            },
+            blockedCommandIds: [],
+            blockedCommandPrefixes: [],
+            blockedCommandSubstrings: [],
+            blockedShortcuts: [],
+            enabled: true,
+            filesystem: {
+              allowHostTempDir: false,
+              extraWritablePaths: [],
+              mode: "auto",
+            },
+            mode: "view",
+            settingsPatch: {},
+          },
+          sessionRoot: null,
+          supportMountTargets: [],
+          writablePaths: [],
+        },
+        supportBindings: [],
+        supportRoot: null,
+        translatedPaths: [],
+        trustedOrigins: [],
+        userDataDir: "/tmp/fake/user-data",
+        watchdogMode: "native",
+        workspacePath: null,
+      },
+    });
+
+    const exit = await handle.exit;
+    const args = readFile(argsLogRoot, "bwrap-args.txt");
+
+    expect(exit.code).toBe(0);
+    expect(args).toContain("--ro-bind");
+    expect(args).toContain("/tmp");
+    expect(args).toContain("/tmp/fake/user-data");
+    expect(args).toContain(process.execPath);
+    expect(handle.getStdout()).toContain("ready");
   });
 });

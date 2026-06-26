@@ -11,6 +11,7 @@ import type {
 import type {
   CodeServerInstallation,
   CodeServerPathBinding,
+  CodeServerReadonlyEnforcement,
   CodeServerPreparationStatus,
   CodeServerReadinessStatus,
   CodeServerReadonlyInput,
@@ -73,6 +74,7 @@ type CodeServerLaunchPlan = {
   preparationStatus: CodeServerPreparationStatus;
   readinessStatus: CodeServerReadinessStatus;
   readonly: CodeServerReadonlyPolicy;
+  readonlyEnforcement: CodeServerReadonlyEnforcement;
   recommendedReadablePaths: string[];
   recommendedWritablePaths: string[];
   sandbox: CodeServerSandboxPlan;
@@ -99,6 +101,7 @@ type CodeServerLaunchSpec = {
   cwd: string;
   env: NodeJS.ProcessEnv;
   readablePaths: string[];
+  readonly: CodeServerReadonlyPolicy;
   writablePaths: string[];
 };
 

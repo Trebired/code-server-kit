@@ -1,6 +1,7 @@
 import {
   browserReadinessPolicy,
 } from "#8392d406df71";
+import { createReadonlyEnforcement, resolveReadonlyWritablePaths } from "../readonly-launch.js";
 import {
   buildCodeServerArgs,
   buildRecommendedBindings,
@@ -76,6 +77,7 @@ function createCorePlanResult(
     preparationStatus: staticFields.preparationStatus,
     readinessStatus: staticFields.readinessStatus,
     readonly: context.readonly,
+    readonlyEnforcement: outputs.readonlyEnforcement,
     recommendedReadablePaths: outputs.recommendedReadablePaths,
     recommendedWritablePaths: outputs.recommendedWritablePaths,
     sandbox: outputs.sandbox,
@@ -132,7 +134,10 @@ function buildPlanOutputs(
     ...context.installation.recommendedReadablePaths,
     context.workspacePath,
   ]);
-  const recommendedWritablePaths = uniquePaths([context.userDataDir, context.extensionsDir]);
+  const recommendedWritablePaths = resolveReadonlyWritablePaths({
+    readonly: context.readonly,
+    writablePaths: [context.userDataDir, context.extensionsDir],
+  });
   const bindings = buildRecommendedBindings({
     extensionsDir: context.extensionsDir,
     installation: context.installation,
@@ -149,6 +154,11 @@ function buildPlanOutputs(
     supportBindings: context.installation.supportBindings,
     workspacePath: context.workspacePath,
   });
+  const readonlyEnforcement = createReadonlyEnforcement({
+    env: context.env,
+    readonly: context.readonly,
+    writablePaths: recommendedWritablePaths,
+  });
   const translatedPaths = uniquePaths([
     context.installation.packageRoot,
     context.installation.supportRoot,
@@ -157,7 +167,7 @@ function buildPlanOutputs(
     context.extensionsDir,
   ]).map((value) => ({ hostPath: value, visiblePath: value }));
 
-  return { bindings, recommendedReadablePaths, recommendedWritablePaths, sandbox, translatedPaths };
+  return { bindings, readonlyEnforcement, recommendedReadablePaths, recommendedWritablePaths, sandbox, translatedPaths };
 }
 
 export { createIntegrationPlanResult };

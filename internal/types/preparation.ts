@@ -7,6 +7,9 @@ import type {
   CodeServerPathAccessMode,
   CodeServerPreparationState,
   CodeServerReadinessState,
+  CodeServerReadonlyBrowserActionSource,
+  CodeServerReadonlyFilesystemBoundary,
+  CodeServerReadonlyFilesystemMode,
   CodeServerReadonlyPolicyMode,
   CodeServerRepairOutcome,
   CodeServerWatchdogMode,
@@ -143,8 +146,12 @@ type CodeServerTranslatedPath = {
 
 type CodeServerReadonlyPolicyOptions = {
   browserGuards?: {
+    blockBeforeInput?: boolean;
+    blockCommandLinks?: boolean;
     blockDragAndDrop?: boolean;
+    blockPaste?: boolean;
     blockUpload?: boolean;
+    blockedCommandLinkSchemes?: string[];
     blockedSelectors?: string[];
     blockedUiLabels?: string[];
     readonlyMessage?: string;
@@ -155,14 +162,23 @@ type CodeServerReadonlyPolicyOptions = {
   blockedCommandSubstrings?: string[];
   blockedShortcuts?: string[];
   enabled?: boolean;
+  filesystem?: {
+    allowHostTempDir?: boolean;
+    extraWritablePaths?: string[];
+    mode?: CodeServerReadonlyFilesystemMode;
+  };
   mode?: CodeServerReadonlyPolicyMode;
   settingsPatch?: Record<string, unknown>;
 };
 
 type CodeServerReadonlyPolicy = {
   browserGuards: {
+    blockBeforeInput: boolean;
+    blockCommandLinks: boolean;
     blockDragAndDrop: boolean;
+    blockPaste: boolean;
     blockUpload: boolean;
+    blockedCommandLinkSchemes: string[];
     blockedSelectors: string[];
     blockedUiLabels: string[];
     readonlyMessage: string;
@@ -173,6 +189,11 @@ type CodeServerReadonlyPolicy = {
   blockedCommandSubstrings: string[];
   blockedShortcuts: string[];
   enabled: boolean;
+  filesystem: {
+    allowHostTempDir: boolean;
+    extraWritablePaths: string[];
+    mode: CodeServerReadonlyFilesystemMode;
+  };
   mode: CodeServerReadonlyPolicyMode;
   settingsPatch: Record<string, unknown>;
 };
@@ -181,6 +202,30 @@ type CodeServerReadonlyInput =
   | boolean
   | CodeServerReadonlyPolicy
   | CodeServerReadonlyPolicyOptions;
+
+type CodeServerReadonlyFilesystemEnforcement = {
+  available: boolean;
+  boundary: CodeServerReadonlyFilesystemBoundary;
+  command: string | null;
+  hardReadonly: boolean;
+  required: boolean;
+  summary: string;
+  warnings: string[];
+  writablePaths: string[];
+};
+
+type CodeServerReadonlyEnforcement = {
+  browser: {
+    blocksCommandLinks: boolean;
+    blocksDragAndDrop: boolean;
+    blocksPaste: boolean;
+    blocksUpload: boolean;
+    blocksWritableSessionPromotions: boolean;
+    defaultActionSource: CodeServerReadonlyBrowserActionSource;
+  };
+  directFilesystem: CodeServerReadonlyFilesystemEnforcement;
+  systemdFilesystem: CodeServerReadonlyFilesystemEnforcement;
+};
 
 type CodeServerSandboxPlan = {
   bindings: CodeServerPathBinding[];
@@ -231,6 +276,8 @@ export type {
   CodeServerPreparationResult,
   CodeServerPreparationStatus,
   CodeServerReadinessStatus,
+  CodeServerReadonlyEnforcement,
+  CodeServerReadonlyFilesystemEnforcement,
   CodeServerReadonlyInput,
   CodeServerReadonlyPolicy,
   CodeServerReadonlyPolicyOptions,

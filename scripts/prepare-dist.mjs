@@ -33,6 +33,7 @@ async function main() {
 async function prepareDist() {
   const packageJson = await readPackageJson();
   await promotePublicDistFiles();
+  await promotePublicRootEntrypoint();
   const files = await collectDistFiles();
 
   await Promise.all(files.map(async (filePath) => {
@@ -75,6 +76,13 @@ async function promotePublicDistFiles() {
     force: true,
     recursive: true,
   });
+}
+
+async function promotePublicRootEntrypoint() {
+  await fs.writeFile(path.join(distDir, "index.js"), 'export * from "./internal/index.js";\n');
+  await fs.writeFile(path.join(distDir, "index.d.ts"), 'export * from "./internal/index.js";\n');
+  await fs.rm(path.join(distDir, "index.js.map"), { force: true });
+  await fs.rm(path.join(distDir, "index.d.ts.map"), { force: true });
 }
 
 async function collectDistFiles() {

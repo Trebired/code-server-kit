@@ -47,6 +47,7 @@ describe("@trebired/code-server-kit systemd", () => {
     createFakeCodeServerPackage(root);
     const plan = await createCodeServerLaunchPlan({
       dataRoot: "/tmp/code-server/runtime",
+      readonly: true,
       resolveFrom: root,
       workspacePath: "/srv/workspaces/demo",
     });
@@ -71,11 +72,16 @@ describe("@trebired/code-server-kit systemd", () => {
       cwd: plan.cwd,
       env: plan.env,
       readablePaths: ["/opt/code-server", "/srv/workspaces/demo"],
+      readonly: plan.readonly,
       writablePaths: ["/tmp/code-server/runtime/user-data"],
     });
 
     expect(properties).toContain("BindReadOnlyPaths=/opt/code-server");
     expect(properties).toContain("BindPaths=/tmp/code-server/runtime/user-data");
+    expect(properties).toContain("NoNewPrivileges=yes");
+    expect(properties).toContain("PrivateTmp=yes");
+    expect(properties).toContain("ProtectSystem=strict");
+    expect(properties).toContain("ReadOnlyPaths=/");
     expect(properties).toContain("ReadOnlyPaths=/srv/workspaces/demo");
     expect(properties).toContain("ReadWritePaths=/tmp/code-server/runtime/user-data");
   });

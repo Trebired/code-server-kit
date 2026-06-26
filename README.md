@@ -234,6 +234,9 @@ Preferred host shape:
 ```ts
 const readonly = createReadonlySessionPolicy({
   enabled: true,
+  filesystem: {
+    mode: "auto",
+  },
   mode: "view",
 });
 ```
@@ -242,10 +245,19 @@ What it owns:
 
 - normalized readonly mode
 - launch-time readonly workspace treatment
+- direct-launch readonly filesystem wrapping when available
+- systemd readonly filesystem hardening
 - settings patch defaults
 - blocked browser commands and shortcuts
+- blocked command-URI links and writable-session promotion flows
 - upload and drag/drop blocking
 - readonly browser banner and messaging
+
+Readonly filesystem policy is additive:
+
+- `filesystem.mode: "auto"` tries to enforce a hard readonly write barrier in package-managed launches and reports when direct mode had to fall back to UI-only guards
+- `filesystem.mode: "require"` keeps the same API shape but lets hosts require a hard boundary instead of silently accepting a soft fallback
+- `filesystem.mode: "off"` keeps the browser/session guards while skipping filesystem wrapping
 
 ## Session Diagnostics
 
@@ -259,6 +271,7 @@ Diagnostics snapshots include:
 - correlation id
 - backend checkpoints
 - readiness checkpoints
+- readonly enforcement summaries for the active launch path
 - normalized failures
 - browser events
 - browser summary

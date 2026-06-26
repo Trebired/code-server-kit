@@ -38,15 +38,19 @@ async function prepareStartRuntime(context: SessionStartContext): Promise<Sessio
   const preparation = await resolvePreparationStatus(options, launchPlan);
   const correlationId = createSessionCorrelationId(sessionKey, context.specHash);
   const backendCheckpoints: import("#3c8d8166992a").CodeServerSessionBackendCheckpoint[] = [];
+  const readonlyFilesystem = launchStrategy === "systemd"
+    ? launchPlan.readonlyEnforcement.systemdFilesystem
+    : launchPlan.readonlyEnforcement.directFilesystem;
 
   await mkdirp(context.paths.sessionDir);
-  logPlannedStart(context, correlationId, launchStrategy, readinessTarget, backendCheckpoints);
+  logPlannedStart(context, correlationId, launchStrategy, readinessTarget, readonlyFilesystem, backendCheckpoints);
 
   return {
     backendCheckpoints,
     browserBridge,
     correlationId,
     launchStrategy,
+    readonlyFilesystem,
     preparation,
     profilePolicy: resolveProfilePolicy(options.profile, launchPlan.readonly),
     readinessTarget,
@@ -161,11 +165,13 @@ function logPlannedStart(
   correlationId: string,
   launchStrategy: SessionStartRuntime["launchStrategy"],
   readinessTarget: SessionStartRuntime["readinessTarget"],
+  readonlyFilesystem: SessionStartRuntime["readonlyFilesystem"],
   backendCheckpoints: SessionStartRuntime["backendCheckpoints"],
 ): void {
   const details = {
     correlationId,
     launchStrategy,
+    readonlyFilesystem,
     readinessTarget,
     sessionKey: context.sessionKey,
     stateRoot: context.stateRoot,

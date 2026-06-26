@@ -47,6 +47,7 @@ async function finalizeReadyStart(
       correlationId: runtime.correlationId,
       launchStrategy: runtime.launchStrategy,
       profile: runtime.profilePolicy?.describe() ?? null,
+      readonlyEnforcement: runtime.readonlyFilesystem,
       readinessTarget: runtime.readinessTarget,
     },
   });
@@ -93,7 +94,7 @@ async function launchSessionRuntime(
   if (runtime.launchStrategy !== "systemd") {
     return await launchDirectRuntime(context, runtime);
   }
-  await launchSystemdRuntime(context);
+  await launchSystemdRuntime(context, runtime);
   return null;
 }
 
@@ -106,12 +107,16 @@ async function launchDirectRuntime(
   pushBackendCheckpoint(runtime.backendCheckpoints, "launch", "spawned direct code-server process", {
     args: context.launchPlan.args,
     command: context.launchPlan.command,
+    readonlyEnforcement: runtime.readonlyFilesystem,
     pid: handle.pid ?? null,
   });
   return handle;
 }
 
-async function launchSystemdRuntime(context: SessionStartContext): Promise<void> {
+async function launchSystemdRuntime(
+  context: SessionStartContext,
+  runtime: SessionStartRuntime,
+): Promise<void> {
   if (!context.options.systemd?.scope) {
     throw new CodeServerInvalidConfigurationError(
       "systemd session launches require an explicit scope of 'user' or 'system'.",
@@ -126,6 +131,11 @@ async function launchSystemdRuntime(context: SessionStartContext): Promise<void>
     scope: context.options.systemd.scope,
     sessionKey: context.sessionKey,
     unitName: context.options.systemd.unitName,
+  });
+  pushBackendCheckpoint(runtime.backendCheckpoints, "launch", "launched code-server with systemd transient unit", {
+    readonlyEnforcement: runtime.readonlyFilesystem,
+    scope: context.options.systemd.scope,
+    unitName: context.options.systemd.unitName ?? `trebired-code-server-kit-${context.sessionKey}.service`,
   });
 }
 
