@@ -1,3 +1,4 @@
+import { result } from "@trebired/result";
 import {
   CodeServerSystemdJournalError,
   CodeServerSystemdLaunchError,
@@ -35,6 +36,12 @@ async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptio
       return {
         ...command,
         output: "reused existing unit",
+        backendResult: result.noop("systemd-unit-reused", "Reused an existing code-server systemd unit.", {
+          data: {
+            scope: command.scope,
+            unitName: command.unitName,
+          },
+        }),
       };
     }
     await stopCodeServerSystemdUnit({
@@ -57,6 +64,12 @@ async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptio
     return {
       ...command,
       output,
+      backendResult: result.ok("Launched code-server systemd unit.", {
+        data: {
+          scope: command.scope,
+          unitName: command.unitName,
+        },
+      }),
     };
   } catch (error) {
     throw new CodeServerSystemdLaunchError("Could not launch code-server with systemd-run.", {
@@ -128,7 +141,31 @@ async function readCodeServerSystemdStatus(options: {
       "--property",
       "ExecMainPID",
     ]);
-    return parseSystemdShowOutput(output, scope, unitName);
+    const status = parseSystemdShowOutput(output, scope, unitName);
+
+    return {
+      ...status,
+      backendResult: status.notFound
+        ? result.notFound("systemd-unit-not-found", "The code-server systemd unit was not found.", {
+            data: {
+              reusable: status.reusable,
+              stateLabel: status.stateLabel,
+            },
+          })
+        : status.failed
+          ? result.error(409, "systemd-unit-failed", "The code-server systemd unit is in a failed state.", {
+              data: {
+                reusable: status.reusable,
+                stateLabel: status.stateLabel,
+              },
+            })
+          : result.ok("Read code-server systemd unit status.", {
+              data: {
+                reusable: status.reusable,
+                stateLabel: status.stateLabel,
+              },
+            }),
+    };
   } catch (error) {
     throw new CodeServerSystemdStatusError("Could not read the code-server systemd unit status.", {
       cause: error instanceof Error ? error.message : String(error),
@@ -180,6 +217,11 @@ async function extractCodeServerSystemdFailure(options: CodeServerSystemdJournal
       launchStrategy: "systemd",
     }),
     summary,
+    backendResult: result.internal("systemd-unit-failed", "The code-server systemd unit failed.", {
+      details: {
+        summary,
+      },
+    }),
   };
 }
 

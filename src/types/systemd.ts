@@ -1,3 +1,4 @@
+import type { ResultLike } from "@trebired/result";
 import type {
   CodeServerKitLogger,
   CodeServerKitLoggerAdapter,
@@ -33,6 +34,10 @@ type CodeServerSystemdLaunchCommand = {
 
 type CodeServerSystemdLaunchResult = CodeServerSystemdLaunchCommand & {
   output: string;
+  backendResult?: ResultLike<{
+    scope: CodeServerSystemdScope;
+    unitName: string;
+  }>;
 };
 
 type CodeServerSystemdStatus = {
@@ -48,6 +53,10 @@ type CodeServerSystemdStatus = {
   stateLabel: "failed" | "not_found" | "ready" | "stale";
   subState: string | null;
   unitName: string;
+  backendResult?: ResultLike<{
+    reusable: boolean;
+    stateLabel: "failed" | "not_found" | "ready" | "stale";
+  }>;
 };
 
 type CodeServerSystemdJournalOptions = {
@@ -69,6 +78,9 @@ type CodeServerSystemdStopOptions = {
 type CodeServerSystemdFailure = {
   diagnostics: CodeServerStartupDiagnostics;
   summary: string;
+  backendResult?: ResultLike<null, {
+    summary: string;
+  }>;
 };
 
 export type {
