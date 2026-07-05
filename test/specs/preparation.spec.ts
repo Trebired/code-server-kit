@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   ensureCodeServerLaunchable,
@@ -12,8 +12,7 @@ import {
 } from "#c0ucu2gxeffq";
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
 
-describe("@trebired/code-server-kit preparation", () => {
-  test("detects a prepared code-server package", () => {
+test("detects a prepared code-server package", () => {
     const root = tempDir();
     const packageRoot = createFakeCodeServerPackage(root);
 
@@ -25,9 +24,9 @@ describe("@trebired/code-server-kit preparation", () => {
     expect(status.state).toBe("prepared");
     expect(status.launchable).toBe(true);
     expect(status.watchdogMode).toBe("native");
-  });
+});
 
-  test("falls back cleanly when the optional native watchdog is missing", () => {
+test("falls back cleanly when the optional native watchdog is missing", () => {
     const root = tempDir();
     createFakeCodeServerPackage(root, {
       includeWatchdog: false,
@@ -38,9 +37,9 @@ describe("@trebired/code-server-kit preparation", () => {
     });
     expect(status.watchdogMode).toBe("disabled_fallback");
     expect(status.issues.some((issue) => issue.code === "missing_native_watchdog")).toBe(true);
-  });
+});
 
-  test("reports launchability with real launch-critical artifacts", () => {
+test("reports launchability with real launch-critical artifacts", () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     fs.rmSync(`${root}/node_modules/code-server/lib/vscode/out/vs/workbench/workbench.web.main.internal.js`);
@@ -57,9 +56,9 @@ describe("@trebired/code-server-kit preparation", () => {
     expect(status.missingCriticalArtifacts.some((artifact) => artifact.includes("workbench.web.main.internal.js"))).toBe(true);
     expect(validation.ok).toBe(false);
     expect(validation.diagnostic?.phase).toBe("prepare");
-  });
+});
 
-  test("detects missing nested ripgrep runtime dependencies", () => {
+test("detects missing nested ripgrep runtime dependencies", () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     fs.rmSync(`${root}/node_modules/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg`);
@@ -70,9 +69,9 @@ describe("@trebired/code-server-kit preparation", () => {
 
     expect(status.launchable).toBe(false);
     expect(status.dependencies.some((dependency) => dependency.dependency === "@vscode/ripgrep" && dependency.present === false)).toBe(true);
-  });
+});
 
-  test("repairs missing support-tree artifacts when the bootstrap script exists", async () => {
+test("repairs missing support-tree artifacts when the bootstrap script exists", async () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     const supportFile = `${root}/node_modules/code-server/lib/vscode/out/vs/workbench/workbench.web.main.internal.css`;
@@ -90,9 +89,9 @@ describe("@trebired/code-server-kit preparation", () => {
     expect(result.changed).toBe(true);
     expect(result.outcome).toBe("repaired");
     expect(result.status.state).toBe("prepared");
-  });
+});
 
-  test("returns structured repair outcomes", async () => {
+test("returns structured repair outcomes", async () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     fs.rmSync(`${root}/node_modules/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg`);
@@ -104,9 +103,9 @@ describe("@trebired/code-server-kit preparation", () => {
     expect(result.outcome).toBe("repaired");
     expect(result.actions.length).toBeGreaterThan(0);
     expect(result.statusAfter.launchable).toBe(true);
-  });
+});
 
-  test("ensures a code-server install is launchable after repair", async () => {
+test("ensures a code-server install is launchable after repair", async () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     fs.rmSync(`${root}/node_modules/code-server/lib/vscode/out/server-main.js`);
@@ -117,5 +116,4 @@ describe("@trebired/code-server-kit preparation", () => {
 
     expect(result.status.launchable).toBe(true);
     expect(result.repaired?.outcome).toBe("repaired");
-  });
 });

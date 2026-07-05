@@ -1,7 +1,7 @@
 import {
   browserReadinessPolicy,
 } from "#8392d406df71";
-import { createReadonlyEnforcement, resolveReadonlyWritablePaths } from "../readonly-launch.js";
+import { createReadonlyEnforcement, resolveReadonlyWritablePaths } from "#rvw6v2m0cxb3";
 import {
   buildCodeServerArgs,
   buildRecommendedBindings,

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   buildCodeServerWebSocketHeaders,
@@ -11,8 +11,7 @@ import {
   normalizeTrustedOrigins,
 } from "#c0ucu2gxeffq";
 
-describe("@trebired/code-server-kit proxy", () => {
-  test("builds forwarded headers for reverse-proxy embedding", () => {
+test("builds forwarded headers for reverse-proxy embedding", () => {
     expect(buildForwardedHeaders({
       forwardedFor: ["10.0.0.1", "10.0.0.2"],
       host: "app.example.com",
@@ -25,9 +24,9 @@ describe("@trebired/code-server-kit proxy", () => {
       "x-forwarded-port": "443",
       "x-forwarded-proto": "https",
     });
-  });
+});
 
-  test("normalizes trusted origins and rejects invalid values", () => {
+test("normalizes trusted origins and rejects invalid values", () => {
     expect(normalizeTrustedOrigins([
       "https://app.example.com",
       "https://app.example.com/",
@@ -38,9 +37,9 @@ describe("@trebired/code-server-kit proxy", () => {
     ]);
 
     expect(() => normalizeTrustedOrigin("not-an-origin")).toThrow(CodeServerInvalidConfigurationError);
-  });
+});
 
-  test("identifies html responses that may need transformation", () => {
+test("identifies html responses that may need transformation", () => {
     expect(isCodeServerHtmlResponse({
       headers: {
         "content-type": "text/html; charset=utf-8",
@@ -54,9 +53,9 @@ describe("@trebired/code-server-kit proxy", () => {
       method: "GET",
       statusCode: 200,
     })).toBe(false);
-  });
+});
 
-  test("builds websocket upgrade headers for proxying code-server", () => {
+test("builds websocket upgrade headers for proxying code-server", () => {
     expect(buildCodeServerWebSocketHeaders({
       forwardedFor: "10.0.0.1",
       host: "app.example.com",
@@ -69,9 +68,9 @@ describe("@trebired/code-server-kit proxy", () => {
       "x-forwarded-host": "app.example.com",
       "x-forwarded-proto": "https",
     });
-  });
+});
 
-  test("classifies common upstream proxy failures", () => {
+test("classifies common upstream proxy failures", () => {
     expect(classifyCodeServerProxyFailure({
       error: {
         code: "ECONNREFUSED",
@@ -83,9 +82,9 @@ describe("@trebired/code-server-kit proxy", () => {
         code: "ETIMEDOUT",
       },
     }).category).toBe("timeout");
-  });
+});
 
-  test("owns HTML transform vs passthrough proxy response branching", async () => {
+test("owns HTML transform vs passthrough proxy response branching", async () => {
     const proxy = createCodeServerProxyAdapter({
       browser: {
         diagnostics: {
@@ -125,9 +124,9 @@ describe("@trebired/code-server-kit proxy", () => {
     expect(transformed.headers["content-length"]).toBeUndefined();
     expect(passthrough.classification.kind).toBe("passthrough");
     expect(passthrough.body).toBe("{\"ok\":true}");
-  });
+});
 
-  test("can neutralize a service worker route through the proxy adapter", async () => {
+test("can neutralize a service worker route through the proxy adapter", async () => {
     const proxy = createCodeServerProxyAdapter({
       serviceWorker: {
         mode: "neutralize",
@@ -148,5 +147,4 @@ describe("@trebired/code-server-kit proxy", () => {
     expect(overridden.classification.kind).toBe("service-worker-override");
     expect(overridden.body).toContain("self.skipWaiting");
     expect(overridden.headers["content-type"]).toContain("application/javascript");
-  });
 });

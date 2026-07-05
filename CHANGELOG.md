@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2
+
+- adopt `@trebired/result` as the internal outcome surface for touched code-server and systemd backend coordination paths instead of local result shaping
+- enforce current `@trebired/code-discipline` expectations on the touched integration helpers while keeping the public host-facing API stable
+
 ## 1.4.1
 
 - move the implementation tree under `src/` and remove the old `internal/` source root so the repository structure matches the actual package code layout

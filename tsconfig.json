@@ -50,8 +50,20 @@
       "#3gget4ysfg9u": [
         "./src/browser/injection-plan.ts"
       ],
+      "#3jm94frp1uyz": [
+        "./test/specs/profile.spec.ts"
+      ],
       "#3nojkzzzf31b": [
         "./src/readonly.ts"
+      ],
+      "#3nrk3e7q9a1n": [
+        "./test/specs/launch/plan.spec.ts"
+      ],
+      "#3xqjnjszumbs": [
+        "./test/specs/session/diagnostics.spec.ts"
+      ],
+      "#47wb3g4wyoaj": [
+        "./test/specs/browser.spec.ts"
       ],
       "#4a168ae26562": [
         "./src/profile-policy.ts"
@@ -86,11 +98,8 @@
       "#5abxg3204o0r": [
         "./src/session/shared.ts"
       ],
-      "#5ps7a4d8ewcy": [
-        "./src/browser/bridge.ts"
-      ],
-      "#5qjg1rhtmudt": [
-        "./src/browser/policy.ts"
+      "#5e8a8en1kz4n": [
+        "./src/readonly/defaults.ts"
       ],
       "#659mwpcvj7f2": [
         "./src/session/start/helpers.ts"
@@ -128,12 +137,6 @@
       "#9a4b218a2e75": [
         "./src/browser/integration.ts"
       ],
-      "#9a5wgy2qp98y": [
-        "./src/diagnostics.ts"
-      ],
-      "#9cdb4ebec7ac": [
-        "./src/readiness.ts"
-      ],
       "#9feae80b5439": [
         "./src/browser/html.ts"
       ],
@@ -143,38 +146,26 @@
       "#9ou2olnossyi": [
         "./src/resolve.ts"
       ],
+      "#9t53w8qbsmjt": [
+        "./test/specs/errors.spec.ts"
+      ],
       "#aa29012a0d3a": [
         "./src/session.ts"
-      ],
-      "#ab9oxifovb9r": [
-        "./src/browser/constants.ts"
-      ],
-      "#ad2fd7ec5e18": [
-        "./src/readonly.ts"
       ],
       "#aibfzv12iuoz": [
         "./src/plan/result.ts"
       ],
-      "#aqdfj83c21zn": [
-        "./src/backend/utils/time.ts"
-      ],
-      "#b4ab0d209a12": [
-        "./src/resolve.ts"
-      ],
-      "#b68ou0db9sz2": [
-        "./src/session.ts"
-      ],
       "#b6bd57e100f1": [
         "./src/spec.ts"
       ],
-      "#ba4fb02a28fc": [
-        "./src/browser/injection-plan.ts"
-      ],
-      "#bh31t0u3otoo": [
-        "./src/proxy.ts"
+      "#bfmndbpzi7qu": [
+        "./test/specs/helpers.ts"
       ],
       "#c0ucu2gxeffq": [
         "./src/index.ts"
+      ],
+      "#c303ncqegd11": [
+        "./test/specs/launch/process.spec.ts"
       ],
       "#cc71dnq57ja6": [
         "./src/preparation/runtime.ts"
@@ -188,41 +179,17 @@
       "#d6svzfdyttwt": [
         "./src/types/launch.ts"
       ],
-      "#d9qg5h58t5s1": [
-        "./src/frontend/js/utils/text.ts"
-      ],
-      "#e587d32fc682": [
-        "./src/browser/transport.ts"
-      ],
-      "#e5tukcrc5ejl": [
-        "./src/profile.ts"
-      ],
       "#ebe51631bc41": [
         "./src/backend/utils/normalize.ts"
       ],
-      "#eo26tqo2krmq": [
-        "./src/doctor.ts"
-      ],
       "#eyal9dswl2j7": [
         "./src/types/core.ts"
-      ],
-      "#f1cba41bd5b2": [
-        "./src/preparation.ts"
       ],
       "#f2iue4uj3r63": [
         "./src/session/state.ts"
       ],
       "#f305179c3cd2": [
         "./src/browser/shared.ts"
-      ],
-      "#fcd73bf294d5": [
-        "./src/index.ts"
-      ],
-      "#g4t95lolryav": [
-        "./src/systemd.ts"
-      ],
-      "#gk2pmrelxtj4": [
-        "./src/types.ts"
       ],
       "#hyt963conza2": [
         "./src/systemd/shared.ts"
@@ -233,20 +200,20 @@
       "#jfr5p9teg08n": [
         "./src/session/status.ts"
       ],
-      "#jn3odgd60xgo": [
-        "./src/spec.ts"
+      "#jlwt5kn4nzlj": [
+        "./test/specs/systemd.spec.ts"
       ],
       "#jn8rn7s5gfoe": [
         "./src/types/browser.ts"
       ],
-      "#l4o3vnac9fva": [
-        "./src/backend/utils/normalize.ts"
+      "#lc1w54anhojq": [
+        "./test/specs/preparation.spec.ts"
       ],
-      "#liy2c4thlucn": [
-        "./src/package-resolution.ts"
+      "#ndpi7x2adc4h": [
+        "./src/browser/readonly.ts"
       ],
-      "#lmlzmok39wnd": [
-        "./src/browser/classification.ts"
+      "#oeim34kdc1kz": [
+        "./test/specs/readiness.spec.ts"
       ],
       "#p18hxzvey9jc": [
         "./src/proxy/runtime.ts"
@@ -260,11 +227,11 @@
       "#qbg65r1ha22o": [
         "./tb.code-discipline.ts"
       ],
-      "#qmc7jsjqutwr": [
-        "./src/browser/integration.ts"
-      ],
       "#rd2k1ce75dlz": [
         "./src/preparation/readiness.ts"
+      ],
+      "#rex8aj2dcptu": [
+        "./test/specs/session/support/entries.ts"
       ],
       "#rvn8bpeqze86": [
         "./src/preparation/shared.ts"
@@ -272,53 +239,35 @@
       "#s8687uzjidig": [
         "./src/types/proxy.ts"
       ],
-      "#sm030wd0nb8l": [
-        "./src/errors.ts"
-      ],
       "#tbm8v1j8sm4b": [
         "./src/types/preparation.ts"
+      ],
+      "#to4hx9a1j7fw": [
+        "./test/specs/readonly.spec.ts"
       ],
       "#tu8ua598h3fk": [
         "./src/session/start/runtime.ts"
       ],
-      "#uazx4xw0etnl": [
-        "./src/launch.ts"
-      ],
       "#uq0s0ibqwdcp": [
         "./src/readiness/probes.ts"
       ],
-      "#vaisolxtfcbb": [
-        "./src/plan.ts"
+      "#uw498haatkld": [
+        "./src/readonly/launch.ts"
       ],
       "#vbzbeb8hf107": [
         "./src/readiness/runtime.ts"
       ],
+      "#vcol3jlz9ppa": [
+        "./test/specs/resolve.spec.ts"
+      ],
       "#ve1b5h99reqy": [
         "./src/session/start/shared.ts"
       ],
-      "#veaayxgefe49": [
-        "./src/browser/html.ts"
+      "#vze0h7icsclw": [
+        "./test/specs/session/lifecycle.spec.ts"
       ],
-      "#vkjmsr2fqefi": [
-        "./src/browser/index.ts"
-      ],
-      "#w6d48kobjs1d": [
-        "./src/backend/utils/object.ts"
-      ],
-      "#wowfqgfn6x8a": [
-        "./src/browser/embed.ts"
-      ],
-      "#x0glhnlu9a7x": [
-        "./src/logging.ts"
-      ],
-      "#x84akww3228z": [
-        "./src/browser/script.ts"
-      ],
-      "#y0baur988skz": [
-        "./src/browser/shared.ts"
-      ],
-      "#z8t2hnz3v8sd": [
-        "./src/profile-policy.ts"
+      "#xe27svmgfojx": [
+        "./test/specs/proxy.spec.ts"
       ],
       "#zzif9tivdlwc": [
         "./src/types/systemd.ts"

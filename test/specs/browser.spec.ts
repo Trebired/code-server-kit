@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   browserReadinessPolicy,
@@ -17,8 +17,7 @@ import {
   transformCodeServerHtml,
 } from "#c0ucu2gxeffq";
 
-describe("@trebired/code-server-kit browser", () => {
-  test("builds a richer browser diagnostics script", () => {
+test("builds a richer browser diagnostics script", () => {
     const script = createBrowserDiagnosticsScript({
       bridgeProperty: "__bridge__",
       embed: {
@@ -44,18 +43,18 @@ describe("@trebired/code-server-kit browser", () => {
     expect(script).toContain("patchReadonlyLinkClicks");
     expect(script).toContain("https://example.test/diagnostics");
     expect(script).toContain("theme synchronized");
-  });
+});
 
-  test("creates an HTML injection plan with nonce support", () => {
+test("creates an HTML injection plan with nonce support", () => {
     const plan = createHtmlInjectionPlan({
       nonce: "nonce-123",
       script: "window.test=true;",
     });
 
     expect(plan.apply("<html><body>Hello</body></html>")).toContain("<script data-trebired-code-server-kit=\"browser-bridge\" nonce=\"nonce-123\">window.test=true;</script></body>");
-  });
+});
 
-  test("keeps browser bridge HTML injection idempotent", () => {
+test("keeps browser bridge HTML injection idempotent", () => {
     const once = injectCodeServerBrowserBridgeHtml({
       diagnostics: {
         bridgeProperty: "__bridge__",
@@ -79,9 +78,9 @@ describe("@trebired/code-server-kit browser", () => {
 
     expect(once).toBe(twice);
     expect((once.match(/data-trebired-code-server-kit="browser-bridge"/g) ?? []).length).toBe(1);
-  });
+});
 
-  test("transforms proxied HTML with diagnostics, readonly, and appearance hooks", () => {
+test("transforms proxied HTML with diagnostics, readonly, and appearance hooks", () => {
     const html = transformCodeServerHtml({
       appearance: {
         bodyData: {
@@ -108,9 +107,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(html).toContain("data-session=\"demo\"");
     expect(html).toContain("favicon.ico");
     expect(html).not.toContain("<script type=\"module\"></script>");
-  });
+});
 
-  test("parses and sanitizes browser diagnostic events", () => {
+test("parses and sanitizes browser diagnostic events", () => {
     const event = parseBrowserDiagnosticEvent({
       details: {
         path: "/srv/workspaces/demo",
@@ -126,9 +125,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(event.summary).toContain("<redacted-path>");
     expect(String(event.details.path)).toContain("<redacted-path>");
     expect(String(event.details.resourceUrl)).toContain("<redacted-path>");
-  });
+});
 
-  test("normalizes browser readiness policy defaults", () => {
+test("normalizes browser readiness policy defaults", () => {
     const policy = browserReadinessPolicy({
       target: "browser-shell",
     });
@@ -137,9 +136,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(policy.workbenchSelectors.length).toBeGreaterThan(0);
     expect(policy.shellSelectors?.length).toBeGreaterThan(0);
     expect(policy.stallTimeoutMs).toBeGreaterThan(0);
-  });
+});
 
-  test("normalizes readonly browser policy and blocks risky actions", () => {
+test("normalizes readonly browser policy and blocks risky actions", () => {
     const policy = createReadonlyBrowserPolicy(true);
     const commandBlock = evaluateReadonlyBrowserAction(policy, {
       commandId: "workbench.action.files.save",
@@ -156,9 +155,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(commandBlock.blocked).toBe(true);
     expect(shortcutBlock.blocked).toBe(true);
     expect(shortcutBlock.reason).toContain("shortcut");
-  });
+});
 
-  test("blocks command URI links and writable-session promotion flows", () => {
+test("blocks command URI links and writable-session promotion flows", () => {
     const policy = createReadonlyBrowserPolicy(true);
     const commandUriBlock = evaluateReadonlyBrowserAction(policy, {
       href: "command:workbench.action.files.setActiveEditorWriteableInSession",
@@ -175,9 +174,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(commandUriBlock.reason).toContain("command URI");
     expect(writablePromotionBlock.blocked).toBe(true);
     expect(writablePromotionBlock.reason).toContain("blocked");
-  });
+});
 
-  test("creates a high-level browser bridge with readonly view mode", () => {
+test("creates a high-level browser bridge with readonly view mode", () => {
     const bridge = createCodeServerBrowserBridge({
       diagnostics: {
         bridgeProperty: "__bridge__",
@@ -201,9 +200,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(blocked.blocked).toBe(true);
     expect(html).toContain("__bridge__");
     expect(html).toContain("readonly browser policy blocked an action");
-  });
+});
 
-  test("classifies stalled browser readiness and builds summaries", () => {
+test("classifies stalled browser readiness and builds summaries", () => {
     const events = [
       parseBrowserDiagnosticEvent({
         details: {},
@@ -233,9 +232,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(summary.eventCategory).toBe("frontend-stalled");
     expect(summary.workbenchState).toBe("stalled");
     expect(summary.mostRelevantUrl).toContain("workbench.js");
-  });
+});
 
-  test("buffers diagnostics and parses transport payloads", async () => {
+test("buffers diagnostics and parses transport payloads", async () => {
     const transport = createBrowserDiagnosticsTransport({
       arrayName: "__TEST_BROWSER_EVENTS__",
       mode: "memory",
@@ -261,9 +260,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(transport.getBufferedEvents()).toHaveLength(1);
     expect(globalEvents).toHaveLength(1);
     expect(parsed[0]?.type).toBe("asset-404");
-  });
+});
 
-  test("creates a high-level browser integration that transforms HTML", () => {
+test("creates a high-level browser integration that transforms HTML", () => {
     const integration = createCodeServerBrowserIntegration({
       diagnostics: {
         bridgeProperty: "__bridge__",
@@ -283,9 +282,9 @@ describe("@trebired/code-server-kit browser", () => {
     expect(integration.readonlyPolicy.enabled).toBe(true);
     expect(html).toContain("__bridge__");
     expect(script).toContain("callback");
-  });
+});
 
-  test("tracks embed readiness through the iframe controller", async () => {
+test("tracks embed readiness through the iframe controller", async () => {
     const controller = createCodeServerEmbedController({
       channel: "frame",
       loadTimeoutMs: 1_000,
@@ -304,9 +303,9 @@ describe("@trebired/code-server-kit browser", () => {
     const ready = await waiting;
     expect(ready.type).toBe("ready");
     expect(controller.getState().state).toBe("ready");
-  });
+});
 
-  test("tracks embed failures and visibility updates", () => {
+test("tracks embed failures and visibility updates", () => {
     const controller = createCodeServerEmbedController({
       channel: "frame",
     });
@@ -323,5 +322,4 @@ describe("@trebired/code-server-kit browser", () => {
 
     expect(controller.getState().visible).toBe(false);
     expect(controller.getState().state).toBe("failed");
-  });
 });

@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   buildDefaultCodeServerUnitName,
@@ -13,8 +13,7 @@ import {
 } from "#c0ucu2gxeffq";
 import { createFakeCodeServerPackage, tempDir } from "./helpers.js";
 
-describe("@trebired/code-server-kit systemd", () => {
-  test("builds transient systemd-run arguments from a launch plan", async () => {
+test("builds transient systemd-run arguments from a launch plan", async () => {
     const root = tempDir();
     const packageRoot = createFakeCodeServerPackage(root);
     const plan = await createCodeServerLaunchPlan({
@@ -40,9 +39,9 @@ describe("@trebired/code-server-kit systemd", () => {
     expect(command.args).toContain("TB_MODE=test");
     expect(command.args).toContain(plan.command);
     expect(command.args).toContain(path.join(packageRoot, "out/node/entry.js"));
-  });
+});
 
-  test("derives systemd path sandbox properties from launch bindings and access hints", async () => {
+test("derives systemd path sandbox properties from launch bindings and access hints", async () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
     const plan = await createCodeServerLaunchPlan({
@@ -84,9 +83,9 @@ describe("@trebired/code-server-kit systemd", () => {
     expect(properties).toContain("ReadOnlyPaths=/");
     expect(properties).toContain("ReadOnlyPaths=/srv/workspaces/demo");
     expect(properties).toContain("ReadWritePaths=/tmp/code-server/runtime/user-data");
-  });
+});
 
-  test("parses systemctl show output into a reusable structured status", () => {
+test("parses systemctl show output into a reusable structured status", () => {
     const status = parseSystemdShowOutput(
       [
         "LoadState=loaded",
@@ -119,13 +118,13 @@ describe("@trebired/code-server-kit systemd", () => {
       subState: "running",
       unitName: "demo.service",
     });
-  });
+});
 
-  test("normalizes a deterministic default unit name", () => {
+test("normalizes a deterministic default unit name", () => {
     expect(buildDefaultCodeServerUnitName("My Session")).toBe("trebired-code-server-kit-my-session.service");
-  });
+});
 
-  test("keeps direct launch specs and systemd launch commands in parity", async () => {
+test("keeps direct launch specs and systemd launch commands in parity", async () => {
     const root = tempDir();
     createFakeCodeServerPackage(root);
 
@@ -147,9 +146,9 @@ describe("@trebired/code-server-kit systemd", () => {
     for (const arg of plan.args) {
       expect(systemd.args).toContain(arg);
     }
-  });
+});
 
-  test("extracts a structured failure summary from systemd journal text", async () => {
+test("extracts a structured failure summary from systemd journal text", async () => {
     const failure = await extractCodeServerSystemdFailure({
       lines: 10,
       scope: "user",
@@ -174,5 +173,4 @@ describe("@trebired/code-server-kit systemd", () => {
     }));
 
     expect(failure.diagnostics.category).toBe("systemd_unit_failed");
-  });
 });

@@ -44,14 +44,7 @@ function createFakeCodeServerPackage(root: string, options: {
 } = {}): string {
   const entryRelativePath = options.entryRelativePath ?? "out/node/entry.js";
   const packageRoot = path.join(root, "node_modules", "code-server");
-  const packageJson = {
-    name: "code-server",
-    version: options.version ?? "4.117.0",
-    ...(options.bin === undefined ? { bin: { "code-server": entryRelativePath } } : { bin: options.bin }),
-    ...(options.main ? { main: options.main } : {}),
-  };
-
-  writeFile(packageRoot, "package.json", `${JSON.stringify(packageJson, null, 2)}\n`);
+  writePackageJson(packageRoot, entryRelativePath, options);
 
   if (options.entryContents !== null) {
     writeFile(
@@ -67,55 +60,73 @@ function createFakeCodeServerPackage(root: string, options: {
     );
   }
 
-  if (options.includeSupportRoot !== false) {
-    fs.mkdirSync(path.join(packageRoot, "lib", "vscode"), { recursive: true });
-    writeFile(packageRoot, "lib/vscode/package.json", "{\n  \"name\": \"embedded-vscode\"\n}\n");
-    writeFile(packageRoot, "lib/vscode/product.json", "{\n  \"nameShort\": \"Code\"\n}\n");
-    fs.mkdirSync(path.join(packageRoot, "lib", "vscode", "extensions"), { recursive: true });
-    writeFile(packageRoot, "lib/vscode/out/server-main.js", "export {};\n");
-    if (options.includeEmbeddedWorkbenchAssets !== false) {
-      writeFile(packageRoot, "lib/vscode/out/vs/workbench/workbench.web.main.internal.js", "export {};\n");
-      writeFile(packageRoot, "lib/vscode/out/vs/workbench/workbench.web.main.internal.css", "body{}\n");
-    }
-    if (options.includeRipgrep !== false) {
-      writeFile(packageRoot, "lib/vscode/node_modules/@vscode/ripgrep/bin/rg", "#!/usr/bin/env sh\nexit 0\n", 0o755);
-      writeFile(packageRoot, "lib/vscode/node_modules/@vscode/ripgrep/package.json", "{\n  \"name\": \"@vscode/ripgrep\"\n}\n");
-    }
-    if (options.includeWatchdog !== false) {
-      writeFile(packageRoot, "lib/vscode/node_modules/@vscode/native-watchdog/package.json", "{\n  \"name\": \"@vscode/native-watchdog\"\n}\n");
-    }
-  }
-
-  if (options.includeBootstrapScript !== false) {
-    writeFile(
-      packageRoot,
-      "postinstall.sh",
-      [
-        "#!/usr/bin/env sh",
-        "set -eu",
-        "mkdir -p lib/vscode/out",
-        "mkdir -p lib/vscode/extensions",
-        "mkdir -p lib/vscode/out/vs/workbench",
-        "[ -f lib/vscode/package.json ] || printf '{\"name\":\"embedded-vscode\"}\\n' > lib/vscode/package.json",
-        "[ -f lib/vscode/product.json ] || printf '{\"nameShort\":\"Code\"}\\n' > lib/vscode/product.json",
-        "mkdir -p out/node",
-        "[ -f out/node/main.js ] || printf 'export {};\\n' > out/node/main.js",
-        "[ -f lib/vscode/out/server-main.js ] || printf 'export {};\\n' > lib/vscode/out/server-main.js",
-        "[ -f lib/vscode/out/vs/workbench/workbench.web.main.internal.js ] || printf 'export {};\\n' > lib/vscode/out/vs/workbench/workbench.web.main.internal.js",
-        "[ -f lib/vscode/out/vs/workbench/workbench.web.main.internal.css ] || printf 'body{}\\n' > lib/vscode/out/vs/workbench/workbench.web.main.internal.css",
-        "mkdir -p lib/vscode/node_modules/@vscode/ripgrep/bin",
-        "[ -f lib/vscode/node_modules/@vscode/ripgrep/package.json ] || printf '{\"name\":\"@vscode/ripgrep\"}\\n' > lib/vscode/node_modules/@vscode/ripgrep/package.json",
-        "[ -f lib/vscode/node_modules/@vscode/ripgrep/bin/rg ] || printf '#!/usr/bin/env sh\\nexit 0\\n' > lib/vscode/node_modules/@vscode/ripgrep/bin/rg",
-        "chmod +x lib/vscode/node_modules/@vscode/ripgrep/bin/rg",
-        "mkdir -p lib/vscode/node_modules/@vscode/native-watchdog",
-        "[ -f lib/vscode/node_modules/@vscode/native-watchdog/package.json ] || printf '{\"name\":\"@vscode/native-watchdog\"}\\n' > lib/vscode/node_modules/@vscode/native-watchdog/package.json",
-        "",
-      ].join("\n"),
-      0o755,
-    );
-  }
+  if (options.includeSupportRoot !== false) writeSupportRoot(packageRoot, options);
+  if (options.includeBootstrapScript !== false) writeBootstrapScript(packageRoot);
 
   return packageRoot;
+}
+
+function writePackageJson(
+  packageRoot: string,
+  entryRelativePath: string,
+  options: Parameters<typeof createFakeCodeServerPackage>[1],
+): void {
+  const packageJson = {
+    name: "code-server",
+    version: options.version ?? "4.117.0",
+    ...(options.bin === undefined ? { bin: { "code-server": entryRelativePath } } : { bin: options.bin }),
+    ...(options.main ? { main: options.main } : {}),
+  };
+  writeFile(packageRoot, "package.json", `${JSON.stringify(packageJson, null, 2)}\n`);
+}
+
+function writeSupportRoot(packageRoot: string, options: Parameters<typeof createFakeCodeServerPackage>[1]): void {
+  fs.mkdirSync(path.join(packageRoot, "lib", "vscode"), { recursive: true });
+  writeFile(packageRoot, "lib/vscode/package.json", "{\n  \"name\": \"embedded-vscode\"\n}\n");
+  writeFile(packageRoot, "lib/vscode/product.json", "{\n  \"nameShort\": \"Code\"\n}\n");
+  fs.mkdirSync(path.join(packageRoot, "lib", "vscode", "extensions"), { recursive: true });
+  writeFile(packageRoot, "lib/vscode/out/server-main.js", "export {};\n");
+
+  if (options.includeEmbeddedWorkbenchAssets !== false) {
+    writeFile(packageRoot, "lib/vscode/out/vs/workbench/workbench.web.main.internal.js", "export {};\n");
+    writeFile(packageRoot, "lib/vscode/out/vs/workbench/workbench.web.main.internal.css", "body{}\n");
+  }
+  if (options.includeRipgrep !== false) {
+    writeFile(packageRoot, "lib/vscode/node_modules/@vscode/ripgrep/bin/rg", "#!/usr/bin/env sh\nexit 0\n", 0o755);
+    writeFile(packageRoot, "lib/vscode/node_modules/@vscode/ripgrep/package.json", "{\n  \"name\": \"@vscode/ripgrep\"\n}\n");
+  }
+  if (options.includeWatchdog !== false) {
+    writeFile(packageRoot, "lib/vscode/node_modules/@vscode/native-watchdog/package.json", "{\n  \"name\": \"@vscode/native-watchdog\"\n}\n");
+  }
+}
+
+function writeBootstrapScript(packageRoot: string): void {
+  writeFile(
+    packageRoot,
+    "postinstall.sh",
+    [
+      "#!/usr/bin/env sh",
+      "set -eu",
+      "mkdir -p lib/vscode/out",
+      "mkdir -p lib/vscode/extensions",
+      "mkdir -p lib/vscode/out/vs/workbench",
+      "[ -f lib/vscode/package.json ] || printf '{\"name\":\"embedded-vscode\"}\\n' > lib/vscode/package.json",
+      "[ -f lib/vscode/product.json ] || printf '{\"nameShort\":\"Code\"}\\n' > lib/vscode/product.json",
+      "mkdir -p out/node",
+      "[ -f out/node/main.js ] || printf 'export {};\\n' > out/node/main.js",
+      "[ -f lib/vscode/out/server-main.js ] || printf 'export {};\\n' > lib/vscode/out/server-main.js",
+      "[ -f lib/vscode/out/vs/workbench/workbench.web.main.internal.js ] || printf 'export {};\\n' > lib/vscode/out/vs/workbench/workbench.web.main.internal.js",
+      "[ -f lib/vscode/out/vs/workbench/workbench.web.main.internal.css ] || printf 'body{}\\n' > lib/vscode/out/vs/workbench/workbench.web.main.internal.css",
+      "mkdir -p lib/vscode/node_modules/@vscode/ripgrep/bin",
+      "[ -f lib/vscode/node_modules/@vscode/ripgrep/package.json ] || printf '{\"name\":\"@vscode/ripgrep\"}\\n' > lib/vscode/node_modules/@vscode/ripgrep/package.json",
+      "[ -f lib/vscode/node_modules/@vscode/ripgrep/bin/rg ] || printf '#!/usr/bin/env sh\\nexit 0\\n' > lib/vscode/node_modules/@vscode/ripgrep/bin/rg",
+      "chmod +x lib/vscode/node_modules/@vscode/ripgrep/bin/rg",
+      "mkdir -p lib/vscode/node_modules/@vscode/native-watchdog",
+      "[ -f lib/vscode/node_modules/@vscode/native-watchdog/package.json ] || printf '{\"name\":\"@vscode/native-watchdog\"}\\n' > lib/vscode/node_modules/@vscode/native-watchdog/package.json",
+      "",
+    ].join("\n"),
+    0o755,
+  );
 }
 
 async function getFreePort(): Promise<number> {

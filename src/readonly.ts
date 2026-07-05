@@ -4,118 +4,18 @@ import type {
   CodeServerReadonlyInput,
   CodeServerReadonlyPolicy,
 } from "./types.js";
-
-const DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH = {
-  "extensions.autoCheckUpdates": false,
-  "extensions.autoUpdate": false,
-  "update.mode": "none",
-  "workbench.startupEditor": "none",
-} as const;
-
-const DEFAULT_READONLY_MESSAGE = "This is a readonly session.";
-const DEFAULT_BLOCKED_COMMAND_IDS = [
-  "editor.action.formatDocument",
-  "editor.action.formatSelection",
-  "editor.action.rename",
-  "git.commit",
-  "git.commitAll",
-  "git.push",
-  "scm.acceptInput",
-  "testing.runAll",
-  "workbench.action.debug.start",
-  "workbench.action.files.save",
-  "workbench.action.files.saveAll",
-  "workbench.action.files.saveWithoutFormatting",
-  "workbench.action.files.setActiveEditorWriteableInSession",
-  "workbench.action.files.toggleActiveEditorReadonlyInSession",
-  "workbench.action.terminal.new",
-  "workbench.action.tasks.runTask",
-] as const;
-const DEFAULT_BLOCKED_COMMAND_PREFIXES = [
-  "editor.action.refactor",
-  "git.",
-  "scm.",
-  "testing.",
-  "workbench.action.debug.",
-  "workbench.action.files.",
-  "workbench.action.tasks.",
-  "workbench.action.terminal.",
-  "workbench.files.action.",
-  "workspace.execute",
-  "workspace.apply",
-  "vscode.execute",
-  "vscode.openfolder",
-  "vscode.open",
-  "vscode.diff",
-  "vscode.changes",
-  "_workbench.download",
-] as const;
-const DEFAULT_BLOCKED_COMMAND_SUBSTRINGS = [
-  "commit",
-  "debug",
-  "delete",
-  "download",
-  "format",
-  "move",
-  "readonly",
-  "refactor",
-  "rename",
-  "replace",
-  "save",
-  "scm",
-  "sourcecontrol",
-  "stage",
-  "task",
-  "terminal",
-  "trash",
-  "upload",
-  "writable",
-  "writeable",
-] as const;
-const DEFAULT_BLOCKED_SHORTCUTS = [
-  "ctrl+s",
-  "meta+s",
-  "ctrl+shift+s",
-  "meta+shift+s",
-  "ctrl+enter",
-  "meta+enter",
-  "f2",
-] as const;
-const DEFAULT_BLOCKED_SELECTORS = [
-  "[data-command*='debug']",
-  "[data-command*='git']",
-  "[data-command*='rename']",
-  "[data-command*='save']",
-  "[data-command*='task']",
-  "[data-command*='terminal']",
-  "[data-command*='upload']",
-  "[data-command*='writable']",
-  "[data-command*='writeable']",
-  "[data-href^='command:']",
-  "a[href^='command:']",
-  "input[type='file']",
-] as const;
-const DEFAULT_BLOCKED_UI_LABELS = [
-  "Commit",
-  "Debug",
-  "Format",
-  "Make Writable",
-  "Push",
-  "Refactor",
-  "Rename",
-  "Run Task",
-  "Run Test",
-  "Save",
-  "Save All",
-  "Set Writable Anyway",
-  "Source Control",
-  "Stage",
-  "Terminal",
-  "Upload",
-  "Writable",
-] as const;
-const DEFAULT_BLOCKED_COMMAND_LINK_SCHEMES = ["command"] as const;
-const WRITABLE_SESSION_PROMOTION_SUBSTRINGS = ["readonly", "writable", "writeable"] as const;
+import {
+  DEFAULT_BLOCKED_COMMAND_IDS,
+  DEFAULT_BLOCKED_COMMAND_LINK_SCHEMES,
+  DEFAULT_BLOCKED_COMMAND_PREFIXES,
+  DEFAULT_BLOCKED_COMMAND_SUBSTRINGS,
+  DEFAULT_BLOCKED_SELECTORS,
+  DEFAULT_BLOCKED_SHORTCUTS,
+  DEFAULT_BLOCKED_UI_LABELS,
+  DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH,
+  DEFAULT_READONLY_MESSAGE,
+  WRITABLE_SESSION_PROMOTION_SUBSTRINGS,
+} from "./readonly/defaults.js";
 
 function createReadonlySessionPolicy(options?: CodeServerReadonlyInput): CodeServerReadonlyPolicy {
   return createReadonlyBrowserPolicy(options);
@@ -419,13 +319,11 @@ function decodeReadonlyUriComponent(value: string): string {
 }
 
 function normalizeCommandId(value: string | undefined): string | null {
-  const normalized = value?.trim().toLowerCase();
-  return normalized || null;
+  return value?.trim().toLowerCase() || null;
 }
 
 function normalizeCommandUri(value: string | undefined): string | null {
-  const normalized = value?.trim();
-  return normalized || null;
+  return value?.trim() || null;
 }
 
 function isWritableSessionPromotionCommand(commandId: string): boolean {
@@ -442,10 +340,4 @@ function readonlyPolicyBlocksWritableSessionPromotions(policy: CodeServerReadonl
     || policy.blockedCommandSubstrings.some((entry) => WRITABLE_SESSION_PROMOTION_SUBSTRINGS.includes(entry.toLowerCase() as typeof WRITABLE_SESSION_PROMOTION_SUBSTRINGS[number]));
 }
 
-export {
-  createReadonlyBrowserPolicy,
-  createReadonlySessionPolicy,
-  DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH,
-  evaluateReadonlyBrowserAction,
-  readonlyPolicyBlocksWritableSessionPromotions,
-};
+export { createReadonlyBrowserPolicy, createReadonlySessionPolicy, DEFAULT_CODE_SERVER_READONLY_SETTINGS_PATCH, evaluateReadonlyBrowserAction, readonlyPolicyBlocksWritableSessionPromotions };

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   createCodeServerProfilePolicy,
@@ -9,8 +9,7 @@ import {
 } from "#c0ucu2gxeffq";
 import { exists, readFile, tempDir, writeFile } from "./helpers.js";
 
-describe("@trebired/code-server-kit profile", () => {
-  test("creates an allowlisted profile sync plan without copying the whole profile tree", () => {
+test("creates an allowlisted profile sync plan without copying the whole profile tree", () => {
     const plan = createCodeServerProfileSyncPlan({
       items: ["settings.json", "snippets", "extensions"],
       sourceDir: "/srv/source-profile",
@@ -40,9 +39,9 @@ describe("@trebired/code-server-kit profile", () => {
         targetPath: "/srv/target-profile/extensions",
       },
     ]);
-  });
+});
 
-  test("copies only the allowlisted profile items and skips missing sources cleanly", async () => {
+test("copies only the allowlisted profile items and skips missing sources cleanly", async () => {
     const sourceDir = tempDir();
     const targetDir = tempDir();
 
@@ -79,9 +78,9 @@ describe("@trebired/code-server-kit profile", () => {
     expect(readFile(targetDir, "User/snippets/app.json")).toContain("\"prefix\"");
     expect(readFile(targetDir, "extensions/demo-extension/package.json")).toContain("\"demo-extension\"");
     expect(exists(targetDir, "User/ignored.json")).toBe(false);
-  });
+});
 
-  test("persists only when the allowlisted profile signature changed", async () => {
+test("persists only when the allowlisted profile signature changed", async () => {
     const sourceDir = tempDir();
     const targetDir = tempDir();
 
@@ -110,9 +109,9 @@ describe("@trebired/code-server-kit profile", () => {
       items: ["settings.json"],
       rootDir: targetDir,
     })).toBe(second.nextSignature);
-  });
+});
 
-  test("owns runtime profile restore, readonly patching, and persist orchestration", async () => {
+test("owns runtime profile restore, readonly patching, and persist orchestration", async () => {
     const restoreFrom = tempDir();
     const persistTo = tempDir();
     const runtimeDir = tempDir();
@@ -144,5 +143,4 @@ describe("@trebired/code-server-kit profile", () => {
     expect(exists(runtimeDir, "User/globalStorage/demo/state.json")).toBe(true);
     expect(persisted?.persisted).toBe(true);
     expect(exists(persistTo, "User/globalStorage/demo/state.json")).toBe(true);
-  });
 });

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 
 import { CodeServerBinaryNotFoundError } from "./errors.js";
-import { buildDirectReadonlyLaunch } from "./readonly-launch.js";
+import { buildDirectReadonlyLaunch } from "./readonly/launch.js";
 import type {
   CodeServerLaunchPlan,
   CodeServerProcessExit,

@@ -32,25 +32,10 @@ async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptio
   const existing = await safeReadStatus(command.scope, command.unitName);
 
   if (existing && !existing.notFound) {
-    if (existing.reusable) {
-      return {
-        ...command,
-        output: "reused existing unit",
-        backendResult: result.noop("systemd-unit-reused", "Reused an existing code-server systemd unit.", {
-          data: {
-            scope: command.scope,
-            unitName: command.unitName,
-          },
-        }),
-      };
+    const reusableResult = await handleExistingSystemdUnit(existing, command, options);
+    if (reusableResult) {
+      return reusableResult;
     }
-    await stopCodeServerSystemdUnit({
-      logger: options.logger,
-      loggerAdapter: options.loggerAdapter,
-      resetFailed: true,
-      scope: command.scope,
-      unitName: command.unitName,
-    });
   }
 
   log.info("systemd", "launching code-server transient unit", {
@@ -61,16 +46,7 @@ async function launchCodeServerWithSystemd(options: CodeServerSystemdLaunchOptio
 
   try {
     const output = await runSystemCommand(command.command, command.args);
-    return {
-      ...command,
-      output,
-      backendResult: result.ok("Launched code-server systemd unit.", {
-        data: {
-          scope: command.scope,
-          unitName: command.unitName,
-        },
-      }),
-    };
+    return createSystemdLaunchResult(command, output, "ok");
   } catch (error) {
     throw new CodeServerSystemdLaunchError("Could not launch code-server with systemd-run.", {
       args: command.args,
@@ -118,54 +94,15 @@ async function readCodeServerSystemdStatus(options: {
   scope: CodeServerSystemdScope;
   unitName: string;
 }): Promise<CodeServerSystemdStatus> {
-  const log = resolveLogger(options.logger, options.loggerAdapter);
   const scope = normalizeSystemdScope(options.scope);
   const unitName = normalizeSystemdUnitName(options.unitName);
   const scopeFlag = scope === "user" ? "--user" : "--system";
 
-  log.info("systemd", "reading code-server systemd status", { scope, unitName });
+  logReadSystemdStatus(options, scope, unitName);
   try {
-    const output = await runSystemCommand("systemctl", [
-      scopeFlag,
-      "show",
-      unitName,
-      "--no-pager",
-      "--property",
-      "LoadState",
-      "--property",
-      "ActiveState",
-      "--property",
-      "SubState",
-      "--property",
-      "Result",
-      "--property",
-      "ExecMainPID",
-    ]);
+    const output = await runSystemCommand("systemctl", createSystemdStatusArgs(scopeFlag, unitName));
     const status = parseSystemdShowOutput(output, scope, unitName);
-
-    return {
-      ...status,
-      backendResult: status.notFound
-        ? result.notFound("systemd-unit-not-found", "The code-server systemd unit was not found.", {
-            data: {
-              reusable: status.reusable,
-              stateLabel: status.stateLabel,
-            },
-          })
-        : status.failed
-          ? result.error(409, "systemd-unit-failed", "The code-server systemd unit is in a failed state.", {
-              data: {
-                reusable: status.reusable,
-                stateLabel: status.stateLabel,
-              },
-            })
-          : result.ok("Read code-server systemd unit status.", {
-              data: {
-                reusable: status.reusable,
-                stateLabel: status.stateLabel,
-              },
-            }),
-    };
+    return attachSystemdStatusResult(status);
   } catch (error) {
     throw new CodeServerSystemdStatusError("Could not read the code-server systemd unit status.", {
       cause: error instanceof Error ? error.message : String(error),
@@ -173,6 +110,105 @@ async function readCodeServerSystemdStatus(options: {
       unitName,
     });
   }
+}
+
+function attachSystemdStatusResult(status: CodeServerSystemdStatus): CodeServerSystemdStatus {
+  return {
+    ...status,
+    backendResult: status.notFound
+      ? result.notFound("systemd-unit-not-found", "The code-server systemd unit was not found.", {
+          data: {
+            reusable: status.reusable,
+            stateLabel: status.stateLabel,
+          },
+        })
+      : status.failed
+        ? result.error(409, "systemd-unit-failed", "The code-server systemd unit is in a failed state.", {
+            data: {
+              reusable: status.reusable,
+              stateLabel: status.stateLabel,
+            },
+          })
+        : result.ok("Read code-server systemd unit status.", {
+            data: {
+              reusable: status.reusable,
+              stateLabel: status.stateLabel,
+            },
+          }),
+  };
+}
+
+function createSystemdLaunchResult(
+  command: ReturnType<typeof createCodeServerSystemdLaunchCommand>,
+  output: string,
+  kind: "noop" | "ok",
+): CodeServerSystemdLaunchResult {
+  return {
+    ...command,
+    output,
+    backendResult: kind === "noop"
+      ? result.noop("systemd-unit-reused", "Reused an existing code-server systemd unit.", {
+          data: {
+            scope: command.scope,
+            unitName: command.unitName,
+          },
+        })
+      : result.ok("Launched code-server systemd unit.", {
+          data: {
+            scope: command.scope,
+            unitName: command.unitName,
+          },
+        }),
+  };
+}
+
+function createSystemdStatusArgs(scopeFlag: string, unitName: string): string[] {
+  return [
+    scopeFlag,
+    "show",
+    unitName,
+    "--no-pager",
+    "--property",
+    "LoadState",
+    "--property",
+    "ActiveState",
+    "--property",
+    "SubState",
+    "--property",
+    "Result",
+    "--property",
+    "ExecMainPID",
+  ];
+}
+
+async function handleExistingSystemdUnit(
+  existing: CodeServerSystemdStatus,
+  command: ReturnType<typeof createCodeServerSystemdLaunchCommand>,
+  options: CodeServerSystemdLaunchOptions,
+): Promise<CodeServerSystemdLaunchResult | null> {
+  if (existing.reusable) {
+    return createSystemdLaunchResult(command, "reused existing unit", "noop");
+  }
+
+  await stopCodeServerSystemdUnit({
+    logger: options.logger,
+    loggerAdapter: options.loggerAdapter,
+    resetFailed: true,
+    scope: command.scope,
+    unitName: command.unitName,
+  });
+  return null;
+}
+
+function logReadSystemdStatus(
+  options: {
+    logger?: CodeServerSystemdLaunchOptions["logger"];
+    loggerAdapter?: CodeServerSystemdLaunchOptions["loggerAdapter"];
+  },
+  scope: CodeServerSystemdScope,
+  unitName: string,
+): void {
+  resolveLogger(options.logger, options.loggerAdapter).info("systemd", "reading code-server systemd status", { scope, unitName });
 }
 
 async function readCodeServerSystemdJournal(options: CodeServerSystemdJournalOptions): Promise<string> {

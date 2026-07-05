@@ -1,6 +1,6 @@
 import net from "node:net";
 
-import { describe, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 
 import {
   CodeServerProcessExitedBeforeReadyError,
@@ -11,8 +11,7 @@ import {
 } from "#c0ucu2gxeffq";
 import { closeServer, getFreePort, sleep } from "./helpers.js";
 
-describe("@trebired/code-server-kit readiness", () => {
-  test("waits until the TCP port starts accepting connections", async () => {
+test("waits until the TCP port starts accepting connections", async () => {
     const port = await getFreePort();
     const server = net.createServer((socket) => {
       socket.end();
@@ -44,9 +43,9 @@ describe("@trebired/code-server-kit readiness", () => {
         }
       }
     }
-  });
+});
 
-  test("throws a structured startup timeout when the port never opens", async () => {
+test("throws a structured startup timeout when the port never opens", async () => {
     const port = await getFreePort();
 
     await expect(waitForCodeServerReady({
@@ -56,9 +55,9 @@ describe("@trebired/code-server-kit readiness", () => {
       target: "http",
       timeoutMs: 120,
     })).rejects.toBeInstanceOf(CodeServerStartupTimeoutError);
-  });
+});
 
-  test("throws a structured exit error when the process dies before readiness", async () => {
+test("throws a structured exit error when the process dies before readiness", async () => {
     const port = await getFreePort();
     const processHandle = {
       args: [],
@@ -103,9 +102,9 @@ describe("@trebired/code-server-kit readiness", () => {
       target: "http",
       timeoutMs: 500,
     })).rejects.toBeInstanceOf(CodeServerProcessExitedBeforeReadyError);
-  });
+});
 
-  test("throws a structured probe error when a caller-provided failure probe fires first", async () => {
+test("throws a structured probe error when a caller-provided failure probe fires first", async () => {
     const port = await getFreePort();
 
     await expect(waitForCodeServerReady({
@@ -127,9 +126,9 @@ describe("@trebired/code-server-kit readiness", () => {
       target: "http",
       timeoutMs: 400,
     })).rejects.toBeInstanceOf(CodeServerStartupProbeError);
-  });
+});
 
-  test("supports browser-shell readiness through the diagnostics bridge", async () => {
+test("supports browser-shell readiness through the diagnostics bridge", async () => {
     const port = await getFreePort();
     const bridge = createSessionDiagnosticsBridge();
     const server = net.createServer((socket) => {
@@ -161,9 +160,9 @@ describe("@trebired/code-server-kit readiness", () => {
     } finally {
       await closeServer(server);
     }
-  });
+});
 
-  test("fails workbench readiness when browser bootstrap times out", async () => {
+test("fails workbench readiness when browser bootstrap times out", async () => {
     const port = await getFreePort();
     const bridge = createSessionDiagnosticsBridge();
     const server = net.createServer((socket) => {
@@ -193,5 +192,4 @@ describe("@trebired/code-server-kit readiness", () => {
     } finally {
       await closeServer(server);
     }
-  });
 });
