@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3
+
+- Moved package-owned code-server-kit initialization logging under the `trebired.code-server-kit` group root.
+
 ## 1.4.2
 
 - adopt `@trebired/result` as the internal outcome surface for touched code-server and systemd backend coordination paths instead of local result shaping

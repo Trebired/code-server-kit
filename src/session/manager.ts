@@ -14,6 +14,7 @@ import { createSessionManagerApi } from "./manager_helpers.js";
 function createCodeServerSessionManager(options: CodeServerSessionManagerOptions = {}): CodeServerSessionManager {
   logPackageInitialized({
     adapter: options.loggerAdapter,
+    group: "trebired.code-server-kit",
     logger: options.logger,
     source: "@trebired/code-server-kit",
   });
