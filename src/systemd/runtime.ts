@@ -1,4 +1,4 @@
-import { result } from "@trebired/result";
+import { result } from "@package/result";
 import {
   CodeServerSystemdJournalError,
   CodeServerSystemdLaunchError,
@@ -116,14 +116,14 @@ function attachSystemdStatusResult(status: CodeServerSystemdStatus): CodeServerS
   return {
     ...status,
     backendResult: status.notFound
-      ? result.notFound("systemd-unit-not-found", "The code-server systemd unit was not found.", {
+      ? result.notFound("systemd-unit-not-found", {
           data: {
             reusable: status.reusable,
             stateLabel: status.stateLabel,
           },
         })
       : status.failed
-        ? result.error(409, "systemd-unit-failed", "The code-server systemd unit is in a failed state.", {
+        ? result.error(409, "systemd-unit-failed", {
             data: {
               reusable: status.reusable,
               stateLabel: status.stateLabel,
@@ -147,7 +147,7 @@ function createSystemdLaunchResult(
     ...command,
     output,
     backendResult: kind === "noop"
-      ? result.noop("systemd-unit-reused", "Reused an existing code-server systemd unit.", {
+      ? result.noop("systemd-unit-reused", {
           data: {
             scope: command.scope,
             unitName: command.unitName,
@@ -253,7 +253,7 @@ async function extractCodeServerSystemdFailure(options: CodeServerSystemdJournal
       launchStrategy: "systemd",
     }),
     summary,
-    backendResult: result.internal("systemd-unit-failed", "The code-server systemd unit failed.", {
+    backendResult: result.internal("systemd-unit-failed", {
       details: {
         summary,
       },

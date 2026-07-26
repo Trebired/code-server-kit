@@ -1,7 +1,7 @@
 import {
   logPackageInitialized,
   resolveLogger as resolveSharedLogger,
-} from "@trebired/logger-adapter";
+} from "@package/logger-adapter";
 
 import type {
   CodeServerKitLogger,
@@ -17,7 +17,7 @@ function resolveLogger(
     adapter,
     fallback: "console",
     logger,
-    source: "@trebired/code-server-kit",
+    source: "@package/code-server-kit",
   }) as NormalizedCodeServerKitLogger;
 }
 

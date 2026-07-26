@@ -6,13 +6,13 @@ import { createReadonlyBrowserPolicy } from "#3nojkzzzf31b";
 import type {
   CodeServerBrowserDiagnosticsScriptOptions,
   CodeServerThemeSyncOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function createBrowserDiagnosticsScript(
   options: CodeServerBrowserDiagnosticsScriptOptions = {},
 ): string {
   const policy = browserReadinessPolicy(options.policy);
-  const bridgeProperty = options.bridgeProperty ?? "__TREBIRED_CODE_SERVER_DIAGNOSTICS__";
+  const bridgeProperty = options.bridgeProperty ?? "__CODE_SERVER_KIT_DIAGNOSTICS__";
   const readonly = createReadonlyBrowserPolicy(options.readonly);
   const transport = normalizeTransportRuntimeConfig(options.transport);
   const embed = {
@@ -73,7 +73,7 @@ function runtimeHelpers(): string {
 function transportSection(): string {
   return [
     "function flushTransport(){if(!state.buffer.length)return;const batch=state.buffer.splice(0,state.buffer.length);",
-    "if(transport.mode==='memory'){const key=transport.arrayName||'__TREBIRED_CODE_SERVER_BROWSER_EVENTS__';window[key]=Array.isArray(window[key])?window[key]:[];window[key].push.apply(window[key],batch);return;}",
+    "if(transport.mode==='memory'){const key=transport.arrayName||'__CODE_SERVER_KIT_BROWSER_EVENTS__';window[key]=Array.isArray(window[key])?window[key]:[];window[key].push.apply(window[key],batch);return;}",
     "if(transport.mode==='callback'){const callback=transport.callbackName&&window[transport.callbackName];if(typeof callback==='function')callback(batch);return;}",
     "if(transport.mode==='postmessage'){try{const target=inIframe?window.parent:window;target.postMessage({events:batch,type:transport.messageType},transport.targetOrigin||'*');}catch{}return;}",
     "if(transport.mode==='http-post'&&transport.endpointUrl){const body=JSON.stringify({events:batch,type:transport.messageType});const headers=transport.headers||{'content-type':'application/json'};if(transport.preferSendBeacon&&navigator.sendBeacon){try{navigator.sendBeacon(transport.endpointUrl,new Blob([body],{type:headers['content-type']||'application/json'}));return;}catch{}}if(window.fetch){fetch(transport.endpointUrl,{body,headers,keepalive:!!transport.keepalive,method:'POST'}).catch(function(){state.buffer.unshift.apply(state.buffer,batch);});}}}",
@@ -125,11 +125,11 @@ function workbenchSection(): string {
 function normalizeThemeSyncOptions(options?: CodeServerThemeSyncOptions): Required<CodeServerThemeSyncOptions> {
   return {
     attributeName: options?.attributeName ?? "data-theme",
-    broadcastChannelName: options?.broadcastChannelName ?? "trebired:code-server-theme",
-    eventName: options?.eventName ?? "trebired:code-server-theme",
+    broadcastChannelName: options?.broadcastChannelName ?? "package:code-server-theme",
+    eventName: options?.eventName ?? "package:code-server-theme",
     initialTheme: options?.initialTheme ?? null,
-    messageType: options?.messageType ?? "trebired:code-server-theme",
-    storageKey: options?.storageKey ?? "trebired:code-server-theme",
+    messageType: options?.messageType ?? "package:code-server-theme",
+    storageKey: options?.storageKey ?? "package:code-server-theme",
   };
 }
 

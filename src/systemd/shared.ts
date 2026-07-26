@@ -71,7 +71,7 @@ function buildSystemdPathProperties(spec: CodeServerLaunchSpec): string[] {
 
 function buildDefaultCodeServerUnitName(sessionKey?: string): string {
   const suffix = String(sessionKey ?? "session").trim() || "session";
-  return normalizeSystemdUnitName(`trebired-code-server-kit-${suffix}`);
+  return normalizeSystemdUnitName(`package-code-server-kit-${suffix}`);
 }
 
 function normalizeSystemdUnitName(value: string): string {

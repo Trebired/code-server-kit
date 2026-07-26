@@ -6,7 +6,7 @@ import type {
   CodeServerBrowserDiagnosticsTransport,
   CodeServerBrowserDiagnosticsTransportOptions,
   CodeServerSanitizerOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function createBrowserDiagnosticsTransport(
   options: CodeServerBrowserDiagnosticsTransportOptions = {},

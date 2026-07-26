@@ -3,7 +3,7 @@ import type {
   CodeServerBrowserDiagnosticEvent,
   CodeServerBrowserDiagnosticsSummary,
   CodeServerBrowserFailure,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function summarizeCodeServerBrowserDiagnostics(
   events: CodeServerBrowserDiagnosticEvent[] = [],

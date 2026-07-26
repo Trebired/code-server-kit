@@ -11,7 +11,7 @@ import type {
   CodeServerBrowserIntegration,
   CodeServerBrowserIntegrationOptions,
   TransformCodeServerHtmlOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function createCodeServerBrowserIntegration(
   options: CodeServerBrowserIntegrationOptions = {},

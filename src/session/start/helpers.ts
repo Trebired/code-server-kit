@@ -2,7 +2,7 @@ import { summarizeCodeServerBrowserDiagnostics } from "#8392d406df71";
 import { normalizeCodeServerStartupFailure } from "#585f3a8d1af0";
 import { CodeServerInvalidConfigurationError, CodeServerSessionLifecycleError, isCodeServerKitError } from "#8974ac53d713";
 import { launchCodeServerProcess } from "#58b1c427e96f";
-import { waitForCodeServerReady } from "#9cdb4ebec7ac";
+import { waitForCodeServerReady } from "#37ar8glh8po5";
 import { launchCodeServerWithSystemd, summarizeCodeServerSystemdJournal } from "#4d930a954677";
 import type { CodeServerSessionFailure, CodeServerSessionRecord, CodeServerSessionStartResult } from "#3c8d8166992a";
 import { createDiagnosticsSnapshot, formatReadyHost, handles, nowIso, pushBackendCheckpoint, safeSystemdSummary, terminateHandle, writeDiagnosticsFile, writeSessionRecord } from "#5abxg3204o0r";
@@ -135,7 +135,7 @@ async function launchSystemdRuntime(
   pushBackendCheckpoint(runtime.backendCheckpoints, "launch", "launched code-server with systemd transient unit", {
     readonlyEnforcement: runtime.readonlyFilesystem,
     scope: context.options.systemd.scope,
-    unitName: context.options.systemd.unitName ?? `trebired-code-server-kit-${context.sessionKey}.service`,
+    unitName: context.options.systemd.unitName ?? `package-code-server-kit-${context.sessionKey}.service`,
   });
 }
 
@@ -185,7 +185,7 @@ async function readJournalTail(
   return await summarizeCodeServerSystemdJournal({
     lines: 50,
     scope: context.options.systemd.scope,
-    unitName: context.options.systemd.unitName ?? `trebired-code-server-kit-${context.sessionKey}.service`,
+    unitName: context.options.systemd.unitName ?? `package-code-server-kit-${context.sessionKey}.service`,
   });
 }
 

@@ -1,6 +1,6 @@
 import { DEFAULT_BROWSER_POLICY } from "./constants.js";
 import { normalizePositiveInteger, normalizeSelectors } from "./shared.js";
-import type { CodeServerBrowserReadinessPolicy } from "#gk2pmrelxtj4";
+import type { CodeServerBrowserReadinessPolicy } from "#3c8d8166992a";
 
 function browserReadinessPolicy(
   options: Partial<CodeServerBrowserReadinessPolicy> = {},

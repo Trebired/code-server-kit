@@ -1,5 +1,5 @@
 import { createCodeServerBrowserBridge } from "#8392d406df71";
-import { createReadonlyBrowserPolicy } from "#ad2fd7ec5e18";
+import { createReadonlyBrowserPolicy } from "#3nojkzzzf31b";
 import {
   buildCodeServerWebSocketHeaders,
   buildForwardedHeaders,

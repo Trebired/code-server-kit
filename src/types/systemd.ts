@@ -1,4 +1,4 @@
-import type { ResultLike } from "@trebired/result";
+import type { ResultLike } from "@package/result";
 import type {
   CodeServerKitLogger,
   CodeServerKitLoggerAdapter,

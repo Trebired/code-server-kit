@@ -2,7 +2,7 @@ import type {
   CodeServerBrowserDiagnosticEvent,
   CodeServerBrowserDiagnosticsRuntimeTransport,
   CodeServerBrowserReadinessPolicy,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 const DEFAULT_BROWSER_POLICY: CodeServerBrowserReadinessPolicy = {
   bootstrapTimeoutMs: 20_000,
@@ -14,19 +14,19 @@ const DEFAULT_BROWSER_POLICY: CodeServerBrowserReadinessPolicy = {
 };
 
 const DEFAULT_TRANSPORT_RUNTIME: CodeServerBrowserDiagnosticsRuntimeTransport = {
-  arrayName: "__TREBIRED_CODE_SERVER_BROWSER_EVENTS__",
+  arrayName: "__CODE_SERVER_KIT_BROWSER_EVENTS__",
   batchSize: 20,
-  callbackName: "__trebiredCodeServerBrowserDiagnostics__",
+  callbackName: "__packageCodeServerBrowserDiagnostics__",
   debounceMs: 250,
   keepalive: true,
-  messageType: "trebired:code-server-diagnostics",
+  messageType: "package:code-server-diagnostics",
   mode: "memory",
   preferSendBeacon: true,
   retryCount: 1,
   targetOrigin: "*",
 };
 
-const DEFAULT_EMBED_CHANNEL = "trebired:code-server-embed";
+const DEFAULT_EMBED_CHANNEL = "package:code-server-embed";
 
 const KNOWN_BROWSER_TYPES = new Set<CodeServerBrowserDiagnosticEvent["type"]>([
   "asset-404",

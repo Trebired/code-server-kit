@@ -8,29 +8,10 @@ coverage/
 # Package artifacts
 *.tgz
 
-# TypeScript and tool caches
-*.tsbuildinfo
-.cache/
-.turbo/
+# Runtime and generated work files
+.tmp/
 
-# Logs and runtime output
-*.log
-logs/
-.runtime/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-bun-debug.log*
-
-# OS and editor noise
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Environment files
+# Local environment
 .env
 .env.*
 !.env.example

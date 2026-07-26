@@ -1,11 +1,11 @@
 import { escapeHtmlAttribute } from "./shared.js";
-import type { CreateHtmlInjectionPlanOptions } from "#gk2pmrelxtj4";
+import type { CreateHtmlInjectionPlanOptions } from "#3c8d8166992a";
 
 function createHtmlInjectionPlan(options: CreateHtmlInjectionPlanOptions) {
   const strategy = options.strategy ?? "append-body";
   const script = options.script.trim();
   const nonce = options.nonce?.trim();
-  const marker = "data-trebired-code-server-kit=\"browser-bridge\"";
+  const marker = "data-package-code-server-kit=\"browser-bridge\"";
   const snippet = nonce
     ? `<script ${marker} nonce="${escapeHtmlAttribute(nonce)}">${script}</script>`
     : `<script ${marker}>${script}</script>`;

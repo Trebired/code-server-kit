@@ -1,5 +1,5 @@
-import { CodeServerStartupProbeError } from "#sm030wd0nb8l";
-import { resolveLogger } from "#x0glhnlu9a7x";
+import { CodeServerStartupProbeError } from "#8974ac53d713";
+import { resolveLogger } from "#5a29135e56c1";
 import { DEFAULT_EMBED_CHANNEL } from "./constants.js";
 import { parseEmbedMessage, normalizePositiveInteger } from "./shared.js";
 import { createBrowserDiagnosticsTransport } from "./transport.js";
@@ -9,7 +9,7 @@ import type {
   CodeServerEmbedMessage,
   CodeServerEmbedMessageType,
   CodeServerEmbedState,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function createCodeServerEmbedController(
   options: CodeServerEmbedControllerOptions = {},
@@ -19,7 +19,7 @@ function createCodeServerEmbedController(
   return {
     createChildTransport() {
       return createBrowserDiagnosticsTransport({
-        messageType: "trebired:code-server-diagnostics",
+        messageType: "package:code-server-diagnostics",
         mode: "postmessage",
         targetOrigin: controller.state.targetOrigin,
       });

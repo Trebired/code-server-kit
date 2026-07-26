@@ -1,5 +1,5 @@
-import { CodeServerStartupProbeError } from "#sm030wd0nb8l";
-import { resolveLogger } from "#x0glhnlu9a7x";
+import { CodeServerStartupProbeError } from "#8974ac53d713";
+import { resolveLogger } from "#5a29135e56c1";
 import { classifyCodeServerBrowserFailure } from "./classification.js";
 import { browserReadinessPolicy } from "./policy.js";
 import { isFailureEvent, parseBrowserDiagnosticEvent } from "./shared.js";
@@ -8,7 +8,7 @@ import type {
   CodeServerReadinessTarget,
   CodeServerSessionDiagnosticsBridge,
   CreateCodeServerSessionDiagnosticsBridgeOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function createSessionDiagnosticsBridge(
   options: CreateCodeServerSessionDiagnosticsBridgeOptions = {},

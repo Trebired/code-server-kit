@@ -4,7 +4,7 @@ import type {
   CodeServerEmbedMessage,
   CodeServerEmbedMessageType,
   CodeServerSanitizerOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 export function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   if (value == null || !Number.isFinite(value) || value <= 0) {

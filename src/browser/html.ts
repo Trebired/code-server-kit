@@ -5,7 +5,7 @@ import { escapeHtml, escapeHtmlAttribute } from "./shared.js";
 import type {
   CodeServerHtmlAppearanceOptions,
   TransformCodeServerHtmlOptions,
-} from "#gk2pmrelxtj4";
+} from "#3c8d8166992a";
 
 function transformCodeServerHtml(options: TransformCodeServerHtmlOptions): string {
   const script = createBrowserDiagnosticsScript({

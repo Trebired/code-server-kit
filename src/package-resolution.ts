@@ -11,7 +11,7 @@ function resolveCodeServerPackageJsonPath(resolveFrom?: string): string {
     } catch (error) {
       throw new CodeServerPackageResolutionError("Could not resolve the bundled code-server package dependency.", {
         cause: error instanceof Error ? error.message : String(error),
-        resolveFrom: "@trebired/code-server-kit",
+        resolveFrom: "@package/code-server-kit",
       });
     }
   }
