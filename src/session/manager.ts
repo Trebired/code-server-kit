@@ -1,4 +1,4 @@
-import { logPackageInitialized } from "#5a29135e56c1";
+import { CODE_SERVER_KIT_LOG_GROUP, CODE_SERVER_KIT_PACKAGE_NAME, logPackageInitialized } from "#5a29135e56c1";
 import type {
   CodeServerSessionManager,
   CodeServerSessionManagerOptions,
@@ -14,9 +14,9 @@ import { createSessionManagerApi } from "./manager_helpers.js";
 function createCodeServerSessionManager(options: CodeServerSessionManagerOptions = {}): CodeServerSessionManager {
   logPackageInitialized({
     adapter: options.loggerAdapter,
-    group: "package.code-server-kit",
+    group: CODE_SERVER_KIT_LOG_GROUP,
     logger: options.logger,
-    source: "@package/code-server-kit",
+    source: CODE_SERVER_KIT_PACKAGE_NAME,
   });
   return createSessionManagerApi(options);
 }

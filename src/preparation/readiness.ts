@@ -8,7 +8,7 @@ import {
   issue,
 } from "./shared.js";
 import type { CodeServerPreparationOptions, CodeServerReadinessStatus } from "#3c8d8166992a";
-import { resolveCodeServerPackageJsonPath } from "#cd9b970a8e3b";
+import { resolveCodeServerPackageJsonPath } from "#t85nzto2yw4q";
 
 function getCodeServerReadinessStatus(
   readinessCache: Map<string, CodeServerReadinessStatus>,

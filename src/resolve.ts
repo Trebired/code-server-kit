@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { CodeServerBinaryNotFoundError, CodeServerPackageResolutionError } from "./errors.js";
-import { resolveCodeServerPackageJsonPath } from "./package-resolution.js";
 import { getCodeServerPreparationStatus, getCodeServerReadinessStatus } from "./preparation.js";
+import { resolveCodeServerPackageJsonPath } from "#t85nzto2yw4q";
 import type { CodeServerEntryKind, CodeServerInstallation, ResolveCodeServerInstallationOptions } from "./types.js";
 
 type CodeServerPackageJson = {

@@ -123,13 +123,13 @@ function attachSystemdStatusResult(status: CodeServerSystemdStatus): CodeServerS
           },
         })
       : status.failed
-        ? result.error(409, "systemd-unit-failed", {
+        ? result.error("systemd-unit-failed", 409, {
             data: {
               reusable: status.reusable,
               stateLabel: status.stateLabel,
             },
           })
-        : result.ok("Read code-server systemd unit status.", {
+        : result.ok("systemd-unit-status-read", {
             data: {
               reusable: status.reusable,
               stateLabel: status.stateLabel,
@@ -153,7 +153,7 @@ function createSystemdLaunchResult(
             unitName: command.unitName,
           },
         })
-      : result.ok("Launched code-server systemd unit.", {
+      : result.ok("systemd-unit-launched", {
           data: {
             scope: command.scope,
             unitName: command.unitName,

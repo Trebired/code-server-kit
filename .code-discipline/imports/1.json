@@ -45,7 +45,6 @@
   "#b6bd57e100f1": "./src/spec.ts",
   "#c0ucu2gxeffq": "./src/index.ts",
   "#cc71dnq57ja6": "./src/preparation/runtime.ts",
-  "#cd9b970a8e3b": "./src/package-resolution.ts",
   "#d66a914eb693": "./src/backend/utils/object.ts",
   "#d6svzfdyttwt": "./src/types/launch.ts",
   "#ebe51631bc41": "./src/backend/utils/normalize.ts",
@@ -65,11 +64,13 @@
   "#rvn8bpeqze86": "./src/preparation/shared.ts",
   "#rvw6v2m0cxb3": "./src/readonly/launch.ts",
   "#s8687uzjidig": "./src/types/proxy.ts",
+  "#t85nzto2yw4q": "./src/package/resolution.ts",
   "#tbm8v1j8sm4b": "./src/types/preparation.ts",
   "#tu8ua598h3fk": "./src/session/start/runtime.ts",
   "#uq0s0ibqwdcp": "./src/readiness/probes.ts",
   "#vbzbeb8hf107": "./src/readiness/runtime.ts",
   "#ve1b5h99reqy": "./src/session/start/shared.ts",
   "#z2mfw1rbya1z": "./scripts/verify-pack.mjs",
+  "#ztxam4p5ur4e": "./src/package/metadata.ts",
   "#zzif9tivdlwc": "./src/types/systemd.ts"
 }

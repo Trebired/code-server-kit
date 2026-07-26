@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-import { CodeServerPackageResolutionError } from "./errors.js";
-
+import { CodeServerPackageResolutionError } from "#8974ac53d713";
+import { PACKAGE_NAME } from "#ztxam4p5ur4e";
 function resolveCodeServerPackageJsonPath(resolveFrom?: string): string {
   if (!resolveFrom) {
     try {
@@ -11,7 +11,7 @@ function resolveCodeServerPackageJsonPath(resolveFrom?: string): string {
     } catch (error) {
       throw new CodeServerPackageResolutionError("Could not resolve the bundled code-server package dependency.", {
         cause: error instanceof Error ? error.message : String(error),
-        resolveFrom: "@package/code-server-kit",
+        resolveFrom: PACKAGE_NAME,
       });
     }
   }

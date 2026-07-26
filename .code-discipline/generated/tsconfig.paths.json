@@ -139,9 +139,6 @@
       "#cc71dnq57ja6": [
         "../../src/preparation/runtime.ts"
       ],
-      "#cd9b970a8e3b": [
-        "../../src/package-resolution.ts"
-      ],
       "#d66a914eb693": [
         "../../src/backend/utils/object.ts"
       ],
@@ -199,6 +196,9 @@
       "#s8687uzjidig": [
         "../../src/types/proxy.ts"
       ],
+      "#t85nzto2yw4q": [
+        "../../src/package/resolution.ts"
+      ],
       "#tbm8v1j8sm4b": [
         "../../src/types/preparation.ts"
       ],
@@ -216,6 +216,9 @@
       ],
       "#z2mfw1rbya1z": [
         "../../scripts/verify-pack.mjs"
+      ],
+      "#ztxam4p5ur4e": [
+        "../../src/package/metadata.ts"
       ],
       "#zzif9tivdlwc": [
         "../../src/types/systemd.ts"
