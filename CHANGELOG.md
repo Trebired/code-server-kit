@@ -1,5 +1,11 @@
 # Changelog
 
+- Standardized package metadata ordering and contributing guidance around the Trebired writing style.
+
+## 1.4.5
+
+- Removed dead test scripts and stale test commands from publish workflows and maintainer docs.
+
 ## 1.4.4
 
 - Removed package test suites and banned committed `*.spec.ts`/`*.spec.tsx` files through Code Discipline.
