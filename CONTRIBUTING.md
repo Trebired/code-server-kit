@@ -44,7 +44,7 @@ There is no package test script. Committed `*.spec.ts` and `*.spec.tsx` files ar
 - Keep launch planning explicit and easy to inspect.
 - Resolve installed `code-server` paths clearly instead of depending on hidden app conventions.
 - Return plain command and arg plans so callers can bring their own sandboxing or supervision.
-- Keep Linux-first Node.js support solid before widening platform scope.
+- Keep Linux-first Bun host support solid before widening platform scope.
 - Avoid external runtime dependencies unless they remove real complexity.
 
 ## Release Process
@@ -54,7 +54,7 @@ There is no package test script. Committed `*.spec.ts` and `*.spec.tsx` files ar
 3. Publish with:
 
    ```sh
-   npm publish
+   bun publish
    ```
 
-`npm publish` runs `prepublishOnly`, which typechecks and runs the package publish verification path.
+`bun publish` runs `prepublishOnly`, which typechecks and runs the package publish verification path.

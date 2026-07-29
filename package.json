@@ -1,10 +1,11 @@
 {
   "name": "@trebired/code-server-kit",
   "version": "1.4.6",
-  "description": "Framework-agnostic code-server integration layer for Node.js apps with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
+  "description": "Framework-agnostic code-server integration layer for Bun hosts with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "type": "module",
   "private": false,
   "license": "MIT",
+  "author": "Miroslav Machynka (Trebired)",
   "config": {
     "organization": {
       "name": "trebired"
@@ -12,7 +13,7 @@
   },
   "packageManager": "bun@1.3.12",
   "engines": {
-    "node": ">=22"
+    "bun": ">=1.0.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -29,12 +30,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && node ./scripts/prepare-dist.mjs prepare-dist",
-    "postpack": "node ./scripts/prepare-dist.mjs postpack",
-    "prepack": "bun run build && node ./scripts/prepare-dist.mjs prepack",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && bun ./scripts/prepare-dist.mjs prepare-dist",
+    "postpack": "bun ./scripts/prepare-dist.mjs postpack",
+    "prepack": "bun run build && bun ./scripts/prepare-dist.mjs prepack",
     "prepublishOnly": "bun run typecheck && bun run verify:pack",
     "typecheck": "tsc --noEmit",
-    "verify:pack": "node ./scripts/verify-pack.mjs"
+    "verify:pack": "bun ./scripts/verify-pack.mjs"
   },
   "dependencies": {
     "@package/logger-adapter": "npm:@trebired/logger-adapter@^0.2.5",
@@ -49,7 +50,6 @@
   },
   "keywords": [
     "code-server",
-    "node",
     "launcher",
     "backend",
     "integration"

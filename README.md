@@ -1,6 +1,6 @@
 # @trebired/code-server-kit
 
-Framework-agnostic `code-server` ownership layer for Node.js hosts.
+Framework-agnostic `code-server` ownership layer for Bun hosts.
 
 `@trebired/code-server-kit` is the generic Trebired package for taking control of the real `code-server` integration lifecycle on Linux-first systems:
 
@@ -16,15 +16,15 @@ The package stays generic on purpose. It does not know about products, routes, r
 
 ## Install
 
-Runtime target: Node.js 22+ on Linux first.
+Runtime support: Bun 1+.
 
 ```sh
-npm install @trebired/code-server-kit
+bun i @trebired/code-server-kit
 ```
 
 `code-server` is bundled as a normal dependency of this package. A host application usually does not need its own direct `code-server` dependency unless it intentionally wants to override resolution.
 
-## Preferred Flow
+## Quick Start
 
 The preferred host integration is:
 
@@ -178,7 +178,7 @@ Related exports:
 
 ### `createCodeServerProxyAdapter(options?)`
 
-The preferred reverse-proxy owner for generic Node.js hosts.
+The preferred reverse-proxy owner for generic Bun hosts.
 
 Main methods:
 
@@ -429,6 +429,6 @@ The session manager uses the same underlying launch plan for direct and systemd 
 ## Notes
 
 - Linux-first by design.
-- Node.js-first by design.
+- Bun-first by design.
 - Generic by design.
 - No host route names, repository assumptions, or branding hooks are required.
