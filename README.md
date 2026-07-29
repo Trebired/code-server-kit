@@ -450,7 +450,3 @@ This package does not:
 - replace `code-server`
 - own product routes, repositories, branding, or vendor runtime conventions
 - hide host security or process-supervision policy
-
-## License
-
-Licensed under MIT. See [LICENSE](./LICENSE).
