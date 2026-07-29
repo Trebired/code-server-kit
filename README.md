@@ -22,8 +22,6 @@ Runtime support: Bun 1+.
 bun i @trebired/code-server-kit
 ```
 
-`code-server` is bundled as a normal dependency of this package. A host application usually does not need its own direct `code-server` dependency unless it intentionally wants to override resolution.
-
 ## Quick Start
 
 The preferred host integration is:
@@ -111,155 +109,9 @@ At that point the host mostly provides:
 - optional metadata
 - optional logging
 
-## Main Ownership APIs
+## Concepts
 
-### `createCodeServerSessionManager(options?)`
-
-The package-owned lifecycle entrypoint.
-
-Manager methods:
-
-- `start(options)`
-- `stop(options)`
-- `restart(options)`
-- `getStatus(options)`
-- `readDiagnostics(options)`
-
-What it owns:
-
-- inflight join vs conflict behavior
-- stale session invalidation
-- reuse when the effective spec still matches
-- direct vs systemd launch supervision
-- readiness progression
-- persisted session state
-- normalized startup failures
-- diagnostics snapshots with correlation ids and backend checkpoints
-
-Useful related helpers:
-
-- `startCodeServerSession(options)`
-- `stopCodeServerSession(options)`
-- `restartCodeServerSession(options)`
-- `inspectSessionFailure(options)`
-
-### `createCodeServerBrowserBridge(options?)`
-
-The preferred browser integration owner.
-
-Main methods:
-
-- `createScript()`
-- `injectHtml({ html, ... })`
-- `transformHtml({ html, ... })`
-- `parseEvent(value)`
-- `parseMessage(value)`
-- `classifyFailure(events?)`
-- `summarize(events?)`
-
-What it owns:
-
-- workbench bootstrap detection
-- shell vs workbench readiness
-- forever-loading and frontend-stall detection
-- websocket diagnostics
-- resource load failures
-- CSP violation capture
-- service-worker diagnostics
-- iframe/embed diagnostics
-- readonly browser guards and blocked-action messaging
-
-Related exports:
-
-- `injectCodeServerBrowserBridgeHtml(options)`
-- `parseBrowserDiagnosticEvent(value)`
-- `createBrowserDiagnosticsScript(options)`
-- `createSessionDiagnosticsBridge(options)`
-
-### `createCodeServerProxyAdapter(options?)`
-
-The preferred reverse-proxy owner for generic Bun hosts.
-
-Main methods:
-
-- `buildForwardedHeaders(options)`
-- `buildWebSocketHeaders(options)`
-- `classifyResponse(options)`
-- `responseRequiresTransform(options)`
-- `handleResponse(options)`
-- `maybeOverrideServiceWorker(pathname)`
-- `persistProfile(runtimeDir?)`
-
-What it owns:
-
-- forwarded headers
-- websocket upgrade headers
-- HTML transform vs passthrough branching
-- transform-time body header stripping
-- proxy failure classification
-- optional service-worker neutralization
-- optional post-response hooks
-- optional profile persist triggers
-
-### `createCodeServerProfilePolicy(options?)`
-
-The preferred profile lifecycle owner.
-
-Main methods:
-
-- `prepareRuntimeProfile(runtimeDir)`
-- `restoreRuntimeProfile(runtimeDir)`
-- `persistRuntimeProfile(runtimeDir)`
-- `schedulePersistRuntimeProfile(runtimeDir)`
-- `readRuntimeSnapshot(runtimeDir)`
-- `describe()`
-
-What it owns:
-
-- allowlisted profile trees
-- restore-if-missing-or-empty
-- persist-if-changed
-- signature comparison
-- readonly runtime defaults
-- settings patch merge
-- optional extension-state handling through `globalStorage`
-- optional persist debounce and inflight coalescing
-
-### `createReadonlySessionPolicy(options?)`
-
-The preferred readonly policy owner.
-
-Preferred host shape:
-
-```ts
-const readonly = createReadonlySessionPolicy({
-  enabled: true,
-  filesystem: {
-    mode: "auto",
-  },
-  mode: "view",
-});
-```
-
-What it owns:
-
-- normalized readonly mode
-- launch-time readonly workspace treatment
-- direct-launch readonly filesystem wrapping when available
-- systemd readonly filesystem hardening
-- settings patch defaults
-- blocked browser commands and shortcuts
-- blocked command-URI links and writable-session promotion flows
-- upload and drag/drop blocking
-- readonly browser banner and messaging
-
-Readonly filesystem policy is additive:
-
-- `filesystem.mode: "auto"` tries to enforce a hard readonly write barrier in package-managed launches and reports when direct mode had to fall back to UI-only guards
-- `filesystem.mode: "require"` keeps the same API shape but lets hosts require a hard boundary instead of silently accepting a soft fallback
-- `filesystem.mode: "off"` keeps the browser/session guards while skipping filesystem wrapping
-
-## Session Diagnostics
+### Session Diagnostics
 
 Each managed session persists:
 
@@ -279,7 +131,7 @@ Diagnostics snapshots include:
 
 `getCodeServerSessionStatus()` returns the latest persisted view plus current readiness probing.
 
-## Browser + Proxy Example
+### Browser + Proxy Example
 
 The package does not force a specific HTTP framework. A host can wire the proxy adapter into its own server stack.
 
@@ -313,7 +165,7 @@ for (const event of events) {
 }
 ```
 
-## Profile Policy Example
+### Profile Policy Example
 
 ```ts
 const profile = createCodeServerProfilePolicy({
@@ -333,11 +185,221 @@ await profile.prepareRuntimeProfile("/srv/code-server/state/sessions/demo/runtim
 await profile.persistRuntimeProfile("/srv/code-server/state/sessions/demo/runtime/user-data");
 ```
 
-## Migration Guide
+## Runtime
+
+### Install Notes
+
+`code-server` is bundled as a normal dependency of this package. A host application usually does not need its own direct `code-server` dependency unless it intentionally wants to override resolution.
+
+### Notes
+
+- Linux-first by design.
+- Bun-first by design.
+- Generic by design.
+- No host route names, repository assumptions, or branding hooks are required.
+
+## Public API
+
+### Main Ownership APIs
+
+#### `createCodeServerSessionManager(options?)`
+
+The package-owned lifecycle entrypoint.
+
+Manager methods:
+
+- `start(options)`
+- `stop(options)`
+- `restart(options)`
+- `getStatus(options)`
+- `readDiagnostics(options)`
+
+What it owns:
+
+- inflight join vs conflict behavior
+- stale session invalidation
+- reuse when the effective spec still matches
+- direct vs systemd launch supervision
+- readiness progression
+- persisted session state
+- normalized startup failures
+- diagnostics snapshots with correlation ids and backend checkpoints
+
+Useful related helpers:
+
+- `startCodeServerSession(options)`
+- `stopCodeServerSession(options)`
+- `restartCodeServerSession(options)`
+- `inspectSessionFailure(options)`
+
+#### `createCodeServerBrowserBridge(options?)`
+
+The preferred browser integration owner.
+
+Main methods:
+
+- `createScript()`
+- `injectHtml({ html, ... })`
+- `transformHtml({ html, ... })`
+- `parseEvent(value)`
+- `parseMessage(value)`
+- `classifyFailure(events?)`
+- `summarize(events?)`
+
+What it owns:
+
+- workbench bootstrap detection
+- shell vs workbench readiness
+- forever-loading and frontend-stall detection
+- websocket diagnostics
+- resource load failures
+- CSP violation capture
+- service-worker diagnostics
+- iframe/embed diagnostics
+- readonly browser guards and blocked-action messaging
+
+Related exports:
+
+- `injectCodeServerBrowserBridgeHtml(options)`
+- `parseBrowserDiagnosticEvent(value)`
+- `createBrowserDiagnosticsScript(options)`
+- `createSessionDiagnosticsBridge(options)`
+
+#### `createCodeServerProxyAdapter(options?)`
+
+The preferred reverse-proxy owner for generic Bun hosts.
+
+Main methods:
+
+- `buildForwardedHeaders(options)`
+- `buildWebSocketHeaders(options)`
+- `classifyResponse(options)`
+- `responseRequiresTransform(options)`
+- `handleResponse(options)`
+- `maybeOverrideServiceWorker(pathname)`
+- `persistProfile(runtimeDir?)`
+
+What it owns:
+
+- forwarded headers
+- websocket upgrade headers
+- HTML transform vs passthrough branching
+- transform-time body header stripping
+- proxy failure classification
+- optional service-worker neutralization
+- optional post-response hooks
+- optional profile persist triggers
+
+#### `createCodeServerProfilePolicy(options?)`
+
+The preferred profile lifecycle owner.
+
+Main methods:
+
+- `prepareRuntimeProfile(runtimeDir)`
+- `restoreRuntimeProfile(runtimeDir)`
+- `persistRuntimeProfile(runtimeDir)`
+- `schedulePersistRuntimeProfile(runtimeDir)`
+- `readRuntimeSnapshot(runtimeDir)`
+- `describe()`
+
+What it owns:
+
+- allowlisted profile trees
+- restore-if-missing-or-empty
+- persist-if-changed
+- signature comparison
+- readonly runtime defaults
+- settings patch merge
+- optional extension-state handling through `globalStorage`
+- optional persist debounce and inflight coalescing
+
+#### `createReadonlySessionPolicy(options?)`
+
+The preferred readonly policy owner.
+
+Preferred host shape:
+
+```ts
+const readonly = createReadonlySessionPolicy({
+  enabled: true,
+  filesystem: {
+    mode: "auto",
+  },
+  mode: "view",
+});
+```
+
+What it owns:
+
+- normalized readonly mode
+- launch-time readonly workspace treatment
+- direct-launch readonly filesystem wrapping when available
+- systemd readonly filesystem hardening
+- settings patch defaults
+- blocked browser commands and shortcuts
+- blocked command-URI links and writable-session promotion flows
+- upload and drag/drop blocking
+- readonly browser banner and messaging
+
+Readonly filesystem policy is additive:
+
+- `filesystem.mode: "auto"` tries to enforce a hard readonly write barrier in package-managed launches and reports when direct mode had to fall back to UI-only guards
+- `filesystem.mode: "require"` keeps the same API shape but lets hosts require a hard boundary instead of silently accepting a soft fallback
+- `filesystem.mode: "off"` keeps the browser/session guards while skipping filesystem wrapping
+
+### Preparation APIs
+
+The package distinguishes install presence from install launchability.
+
+Main preparation exports:
+
+- `getCodeServerReadinessStatus(options?)`
+- `validateCodeServerInstall(options?)`
+- `repairCodeServerInstall(options?)`
+- `ensureCodeServerLaunchable(options?)`
+- `getCodeServerPreparationStatus(options?)`
+- `ensureCodeServerPrepared(options?)`
+
+Use these when a host wants an explicit preflight step. Otherwise the session manager runs preparation automatically.
+
+### Launch Planning APIs
+
+Lower-level planning APIs still exist for advanced integrations:
+
+- `createCodeServerIntegrationPlan(options)`
+- `createCodeServerLaunchPlan(options)`
+- `createCodeServerLaunchSpec(plan)`
+- `buildCodeServerArgs(options)`
+
+Returned plans already include:
+
+- command and args
+- readable and writable path suggestions
+- readonly workspace treatment
+- support-tree binding suggestions
+- translated visible paths
+- direct vs node execution decisions
+
+### Systemd APIs
+
+Transient systemd support remains available for hosts that need it:
+
+- `createCodeServerSystemdLaunchCommand(options)`
+- `launchCodeServerWithSystemd(options)`
+- `readCodeServerSystemdStatus(options)`
+- `stopCodeServerSystemdUnit(options)`
+- `summarizeCodeServerSystemdJournal(options)`
+
+The session manager uses the same underlying launch plan for direct and systemd flows.
+
+## Migration Notes
+
+### Migration Guide
 
 The package now prefers high-level ownership APIs over app-side helper glue.
 
-### Replace This
+#### Replace This
 
 - app-owned session reuse maps, inflight guards, and stale restart checks
 - app-owned browser bootstrap scripts
@@ -346,7 +408,7 @@ The package now prefers high-level ownership APIs over app-side helper glue.
 - app-owned readonly browser event interception
 - app-owned profile restore/persist orchestration
 
-### With This
+#### With This
 
 - `createCodeServerSessionManager()`
 - `createCodeServerBrowserBridge()`
@@ -354,7 +416,7 @@ The package now prefers high-level ownership APIs over app-side helper glue.
 - `createCodeServerProfilePolicy()`
 - `createReadonlySessionPolicy()`
 
-### Recommended Mapping
+#### Recommended Mapping
 
 - `createBrowserDiagnosticsScript()` -> `createCodeServerBrowserBridge()`
 - `transformCodeServerHtml()` -> `createCodeServerProxyAdapter()` or `injectCodeServerBrowserBridgeHtml()`
@@ -362,7 +424,7 @@ The package now prefers high-level ownership APIs over app-side helper glue.
 - `syncCodeServerProfile()` and `persistCodeServerProfileIfChanged()` -> `createCodeServerProfilePolicy()`
 - host reuse/restart glue -> `createCodeServerSessionManager()`
 
-### What Stays Low-Level
+#### What Stays Low-Level
 
 These exports remain supported for advanced hosts that intentionally want more control:
 
@@ -381,54 +443,14 @@ These exports remain supported for advanced hosts that intentionally want more c
 
 These are still useful, but they are no longer the preferred starting point for normal host integrations.
 
-## Preparation APIs
+## What It Does Not Do
 
-The package distinguishes install presence from install launchability.
+This package does not:
 
-Main preparation exports:
+- replace `code-server`
+- own product routes, repositories, branding, or vendor runtime conventions
+- hide host security or process-supervision policy
 
-- `getCodeServerReadinessStatus(options?)`
-- `validateCodeServerInstall(options?)`
-- `repairCodeServerInstall(options?)`
-- `ensureCodeServerLaunchable(options?)`
-- `getCodeServerPreparationStatus(options?)`
-- `ensureCodeServerPrepared(options?)`
+## License
 
-Use these when a host wants an explicit preflight step. Otherwise the session manager runs preparation automatically.
-
-## Launch Planning APIs
-
-Lower-level planning APIs still exist for advanced integrations:
-
-- `createCodeServerIntegrationPlan(options)`
-- `createCodeServerLaunchPlan(options)`
-- `createCodeServerLaunchSpec(plan)`
-- `buildCodeServerArgs(options)`
-
-Returned plans already include:
-
-- command and args
-- readable and writable path suggestions
-- readonly workspace treatment
-- support-tree binding suggestions
-- translated visible paths
-- direct vs node execution decisions
-
-## Systemd APIs
-
-Transient systemd support remains available for hosts that need it:
-
-- `createCodeServerSystemdLaunchCommand(options)`
-- `launchCodeServerWithSystemd(options)`
-- `readCodeServerSystemdStatus(options)`
-- `stopCodeServerSystemdUnit(options)`
-- `summarizeCodeServerSystemdJournal(options)`
-
-The session manager uses the same underlying launch plan for direct and systemd flows.
-
-## Notes
-
-- Linux-first by design.
-- Bun-first by design.
-- Generic by design.
-- No host route names, repository assumptions, or branding hooks are required.
+Licensed under MIT. See [LICENSE](./LICENSE).
