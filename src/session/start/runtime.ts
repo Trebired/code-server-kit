@@ -1,4 +1,3 @@
-import path from "node:path";
 
 import { summarizeCodeServerBrowserDiagnostics } from "#8392d406df71";
 import { resolveLogger } from "#5a29135e56c1";

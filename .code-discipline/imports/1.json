@@ -56,6 +56,7 @@
   "#i7k3zqg0wweb": "./src/proxy/shared.ts",
   "#jfr5p9teg08n": "./src/session/status.ts",
   "#jn8rn7s5gfoe": "./src/types/browser.ts",
+  "#ljdjl0e1wyqr": "./scripts/build/generated/tsconfig.mjs",
   "#ndpi7x2adc4h": "./src/browser/readonly.ts",
   "#p18hxzvey9jc": "./src/proxy/runtime.ts",
   "#pokhd7q93q7m": "./src/plan/runtime.ts",

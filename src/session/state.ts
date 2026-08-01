@@ -2,7 +2,6 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { summarizeCodeServerBrowserDiagnostics } from "#8392d406df71";
 import { createCodeServerProfilePolicy } from "#4a168ae26562";
 import { createReadonlySessionPolicy } from "#3nojkzzzf31b";
 import { summarizeCodeServerSystemdJournal } from "#4d930a954677";

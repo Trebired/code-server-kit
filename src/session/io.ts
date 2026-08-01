@@ -3,7 +3,7 @@ import net from "node:net";
 import path from "node:path";
 
 import { CodeServerInvalidConfigurationError } from "#8974ac53d713";
-import type { CodeServerProcessHandle, CodeServerSessionRecord } from "#3c8d8166992a";
+import { CodeServerProcessHandle } from "#3c8d8166992a";
 
 function getSessionPaths(stateRoot: string, sessionKey: string) {
   const normalizedStateRoot = path.resolve(stateRoot);

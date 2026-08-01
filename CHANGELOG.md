@@ -1,5 +1,15 @@
 # Changelog
 
+All notable changes to `@trebired/code-server-kit` will be documented here.
+
+This project follows semantic versioning once published.
+
+## 1.4.9
+
+- Updated Code Discipline configuration to the `imports` rule with dead import removal enabled.
+- Updated code-server-kit log group metadata fallback so package-owned logs stay under the organization root when package metadata is unavailable.
+- Updated internal package dependency ranges to the current published sibling releases.
+
 ## 1.4.8
 
 - Fixed a broken published-package build: a fresh checkout has no committed `.code-discipline/generated/` output, and nothing regenerated it before `typecheck`/`build`, so every internal `#hash` import failed to resolve. `typecheck` and `build` now run `prepare:generated` first.

@@ -6,14 +6,7 @@ import {
 } from "#8974ac53d713";
 import { collectCodeServerStartupDiagnostics } from "#585f3a8d1af0";
 import { resolveLogger } from "#5a29135e56c1";
-import {
-  buildDefaultCodeServerUnitName,
-  createCodeServerSystemdLaunchCommand,
-  normalizeSystemdScope,
-  normalizeSystemdUnitName,
-  parseSystemdShowOutput,
-  runSystemCommand,
-} from "./shared.js";
+import { createCodeServerSystemdLaunchCommand, normalizeSystemdScope, normalizeSystemdUnitName, parseSystemdShowOutput, runSystemCommand } from "./shared.js";
 import type {
   CodeServerSystemdFailure,
   CodeServerSystemdJournalOptions,

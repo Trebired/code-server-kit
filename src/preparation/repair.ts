@@ -13,13 +13,7 @@ import {
   repairHints,
 } from "./shared.js";
 import { getCodeServerReadinessStatus } from "./readiness.js";
-import type {
-  CodeServerPreparationOptions,
-  CodeServerReadinessStatus,
-  CodeServerRepairAction,
-  CodeServerRepairOptions,
-  CodeServerRepairResult,
-} from "#3c8d8166992a";
+import { CodeServerReadinessStatus, CodeServerRepairAction, CodeServerRepairOptions, CodeServerRepairResult } from "#3c8d8166992a";
 
 async function repairCodeServerInstall(
   readinessCache: Map<string, CodeServerReadinessStatus>,
