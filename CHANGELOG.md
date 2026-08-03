@@ -4,6 +4,11 @@ All notable changes to `@trebired/code-server-kit` will be documented here.
 
 This project follows semantic versioning once published.
 
+## 1.4.10
+
+- Moved Code Discipline config, alias-map state, generated tsconfig paths, and reports to `.trebired/code-discipline/`.
+- Updated the `@trebired/code-discipline` devDependency to `^4.10.0`.
+
 ## 1.4.9
 
 - Updated Code Discipline configuration to the `imports` rule with dead import removal enabled.
