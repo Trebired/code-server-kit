@@ -4,6 +4,10 @@ All notable changes to `@trebired/code-server-kit` will be documented here.
 
 This project follows semantic versioning once published.
 
+## 1.4.15
+
+- Adopted the external `@trebired/code-discipline-config` preset and updated Code Discipline tooling to `@trebired/code-discipline@^6.0.9`.
+
 ## 1.4.14
 
 - Updated the Code Discipline devDependency and lockfile to public `@trebired/code-discipline@^5.5.2`.
