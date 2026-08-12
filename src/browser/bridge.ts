@@ -40,15 +40,15 @@ function createBridgeState(options: CreateCodeServerSessionDiagnosticsBridgeOpti
     options,
     waiters: new Set<{
       startedAt: number;
-      target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+      target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">;
       resolve(value: {
-        elapsedMs: number;
-        event: CodeServerBrowserDiagnosticEvent;
-        target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+          elapsedMs: number;
+          event: CodeServerBrowserDiagnosticEvent;
+          target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">;
       }): void;
       reject(error: Error): void;
       timer: ReturnType<typeof setTimeout>;
-    }>(),
+    }> (),
   };
 }
 
@@ -59,10 +59,10 @@ function recordBridgeEvent(
   const parsed = parseBrowserDiagnosticEvent(event, state.options.sanitizer);
   state.events.push(parsed);
   state.log.info("browser:diagnostic", parsed.summary, {
-    details: parsed.details,
-    level: parsed.level,
-    phase: parsed.phase,
-    type: parsed.type,
+      details: parsed.details,
+      level: parsed.level,
+      phase: parsed.phase,
+      type: parsed.type,
   });
 
   for (const waiter of [...state.waiters]) {
@@ -84,7 +84,7 @@ function recordBridgeEvent(
 
 function waitForBridgeTarget(
   state: ReturnType<typeof createBridgeState>,
-  target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">,
+  target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">,
   timeoutMs?: number,
 ) {
   const existing = state.events.find((event) => matchesReadinessTarget(target, event));
@@ -95,31 +95,31 @@ function waitForBridgeTarget(
   const failure = state.events.find((event) => isFailureEvent(event));
   if (failure) {
     return Promise.reject(new CodeServerStartupProbeError(failure.summary, {
-      browserEvent: failure,
-      phase: failure.phase,
+          browserEvent: failure,
+          phase: failure.phase,
     }));
   }
 
   return new Promise<{
     elapsedMs: number;
     event: CodeServerBrowserDiagnosticEvent;
-    target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
-  }>((resolve, reject) => {
-    const startedAt = Date.now();
-    const timer = setTimeout(() => {
-      state.waiters.delete(waiter);
-      const classified = classifyCodeServerBrowserFailure(state.events);
-      reject(new CodeServerStartupProbeError(classified.summary, {
-        browserEvents: [...state.events],
-        hints: [classified.hint],
-        phase: classified.relevantEvent?.phase ?? "browser-bootstrap",
-        retryable: classified.retryable,
-        target,
-      }));
-    }, timeoutMs ?? browserReadinessPolicy(state.options.policy).bootstrapTimeoutMs);
+    target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">;
+  }> ((resolve, reject) => {
+      const startedAt = Date.now();
+      const timer = setTimeout(() => {
+          state.waiters.delete(waiter);
+          const classified = classifyCodeServerBrowserFailure(state.events);
+          reject(new CodeServerStartupProbeError(classified.summary, {
+                browserEvents: [...state.events],
+                hints: [classified.hint],
+                phase: classified.relevantEvent?.phase ?? "browser-bootstrap",
+                retryable: classified.retryable,
+                target,
+          }));
+        }, timeoutMs ?? browserReadinessPolicy(state.options.policy).bootstrapTimeoutMs);
 
-    const waiter = { reject, resolve, startedAt, target, timer };
-    state.waiters.add(waiter);
+      const waiter = { reject, resolve, startedAt, target, timer };
+      state.waiters.add(waiter);
   });
 }
 
@@ -134,7 +134,7 @@ function uniqueReadyTargets(events: CodeServerBrowserDiagnosticEvent[]): CodeSer
 }
 
 function matchesReadinessTarget(
-  target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">,
+  target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">,
   event: CodeServerBrowserDiagnosticEvent,
 ): boolean {
   if (target === "websocket") return event.type === "websocket-open";

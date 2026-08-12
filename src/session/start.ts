@@ -58,13 +58,13 @@ async function createSessionStartAttempt(
   const launchPlan = await createCodeServerLaunchPlan(buildLaunchPlanOptions(options, paths.sessionDir, existing));
   const specHash = buildSessionSpecHash(options, launchPlan);
   return await startCodeServerSessionInner({
-    existing,
-    launchPlan,
-    options,
-    paths,
-    sessionKey,
-    specHash,
-    stateRoot,
+      existing,
+      launchPlan,
+      options,
+      paths,
+      sessionKey,
+      specHash,
+      stateRoot,
   });
 }
 
@@ -124,10 +124,10 @@ function buildSessionSpecHash(
   launchPlan: Awaited<ReturnType<typeof createCodeServerLaunchPlan>>,
 ): string {
   return buildRequestedSpecHash({
-    ...options,
-    host: launchPlan.host,
-    launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
-    port: launchPlan.port,
+      ...options,
+      host: launchPlan.host,
+      launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
+      port: launchPlan.port,
   });
 }
 

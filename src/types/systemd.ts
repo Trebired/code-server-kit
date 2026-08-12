@@ -32,7 +32,7 @@ type CodeServerSystemdLaunchCommand = {
   unitName: string;
 };
 
-type CodeServerSystemdLaunchResult = CodeServerSystemdLaunchCommand & {
+type CodeServerSystemdLaunchResult = CodeServerSystemdLaunchCommand& {
   output: string;
   backendResult?: ResultLike<{
     scope: CodeServerSystemdScope;

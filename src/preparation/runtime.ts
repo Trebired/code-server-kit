@@ -22,17 +22,17 @@ function validateCodeServerInstall(options: CodeServerPreparationOptions = {}): 
   const status = getCodeServerReadinessStatus(options);
   return {
     diagnostic: status.launchable
-      ? null
-      : collectCodeServerStartupDiagnostics({
+    ? null
+    : collectCodeServerStartupDiagnostics({
         category: "preparation_failed",
         error: new CodeServerPreparationError("The code-server package is not launchable.", {
-          issues: status.issues,
-          packageRoot: status.packageRoot,
+            issues: status.issues,
+            packageRoot: status.packageRoot,
         }),
         hints: repairHints(status),
         phase: "prepare",
         retryable: status.state === "repairable",
-      }),
+    }),
     ok: status.launchable,
     status,
   };
@@ -51,20 +51,20 @@ async function ensureCodeServerLaunchable(
   }
   if (options.attemptRepair === false) {
     throw new CodeServerPreparationError("The code-server package is not launchable.", {
-      issues: validation.status.issues,
-      packageRoot: validation.status.packageRoot,
-      phase: "prepare",
+        issues: validation.status.issues,
+        packageRoot: validation.status.packageRoot,
+        phase: "prepare",
     });
   }
 
   const repaired = await repairCodeServerInstallWithCache(readinessCache, options);
   if (!repaired.statusAfter.launchable) {
     throw new CodeServerPreparationError("The code-server package is still not launchable after repair attempts.", {
-      actions: repaired.actions,
-      issues: repaired.statusAfter.issues,
-      outcome: repaired.outcome,
-      packageRoot: repaired.statusAfter.packageRoot,
-      phase: repaired.outcome === "unrecoverable" ? "prepare" : "repair",
+        actions: repaired.actions,
+        issues: repaired.statusAfter.issues,
+        outcome: repaired.outcome,
+        packageRoot: repaired.statusAfter.packageRoot,
+        phase: repaired.outcome === "unrecoverable" ? "prepare" : "repair",
     });
   }
 
@@ -78,7 +78,7 @@ async function ensureCodeServerLaunchable(
 function getCodeServerPreparationStatus(options: CodeServerPreparationOptions = {}): CodeServerPreparationStatus {
   const readiness = getCodeServerReadinessStatus(options);
   const watchdogIssue = toWatchdogIssue(readiness.dependencies.find((dependency) => {
-    return dependency.dependency === "@vscode/native-watchdog";
+        return dependency.dependency === "@vscode/native-watchdog";
   }));
 
   return {
@@ -98,8 +98,8 @@ function getCodeServerPreparationStatus(options: CodeServerPreparationOptions = 
 
 async function ensureCodeServerPrepared(options: CodeServerPreparationOptions = {}): Promise<CodeServerPreparationResult> {
   const result = await ensureCodeServerLaunchable({
-    ...options,
-    attemptRepair: true,
+      ...options,
+      attemptRepair: true,
   });
 
   return {

@@ -29,26 +29,26 @@ function createSessionManagerApi(options: CodeServerSessionManagerOptions): Code
 
 function createGetStatusHandler(options: CodeServerSessionManagerOptions) {
   return async function getStatus(
-    input: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">,
-  ): Promise<CodeServerSessionStatus | null> {
+    input: Pick<CodeServerSessionRequest, "logger"|"loggerAdapter"|"sanitizer"|"sessionKey"|"stateRoot">,
+  ): Promise<CodeServerSessionStatus|null> {
     return await getCodeServerSessionStatusInternal({
-      logger: input.logger ?? options.logger,
-      loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
-      sanitizer: input.sanitizer,
-      sessionKey: input.sessionKey,
-      stateRoot: input.stateRoot,
+        logger: input.logger ?? options.logger,
+        loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        sanitizer: input.sanitizer,
+        sessionKey: input.sessionKey,
+        stateRoot: input.stateRoot,
     });
   };
 }
 
 function createReadDiagnosticsHandler() {
   return async function readDiagnostics(
-    input: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">,
+    input: Pick<CodeServerSessionRequest, "sanitizer"|"sessionKey"|"stateRoot">,
   ) {
     return await readCodeServerSessionDiagnostics({
-      sanitizer: input.sanitizer,
-      sessionKey: input.sessionKey,
-      stateRoot: input.stateRoot,
+        sanitizer: input.sanitizer,
+        sessionKey: input.sessionKey,
+        stateRoot: input.stateRoot,
     });
   };
 }
@@ -56,13 +56,13 @@ function createReadDiagnosticsHandler() {
 function createRestartHandler(options: CodeServerSessionManagerOptions) {
   return async function restart(input: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult> {
     const stop = await stopCodeServerSessionInternal({
-      logger: input.logger ?? options.logger,
-      loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
-      profile: input.profile ?? options.profile,
-      sanitizer: input.sanitizer,
-      sessionKey: input.sessionKey,
-      signal: "SIGTERM",
-      stateRoot: input.stateRoot,
+        logger: input.logger ?? options.logger,
+        loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        profile: input.profile ?? options.profile,
+        sanitizer: input.sanitizer,
+        sessionKey: input.sessionKey,
+        signal: "SIGTERM",
+        stateRoot: input.stateRoot,
     }) ?? createEmptyStopResult(input.sessionKey);
     const start = await startCodeServerSessionInternal(resolveStartInput(options, input));
     return { start, stop };
@@ -77,15 +77,15 @@ function createStartHandler(options: CodeServerSessionManagerOptions) {
 
 function createStopHandler(options: CodeServerSessionManagerOptions) {
   return async function stop(
-    input: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
+    input: Pick<CodeServerSessionRequest, "logger"|"loggerAdapter"|"profile"|"sanitizer"|"sessionKey"|"stateRoot">& {
       signal?: NodeJS.Signals | number;
     },
-  ): Promise<CodeServerSessionStopResult | null> {
+  ): Promise<CodeServerSessionStopResult|null> {
     return await stopCodeServerSessionInternal({
-      ...input,
-      logger: input.logger ?? options.logger,
-      loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
-      profile: input.profile ?? options.profile,
+        ...input,
+        logger: input.logger ?? options.logger,
+        loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
+        profile: input.profile ?? options.profile,
     });
   };
 }
@@ -101,7 +101,7 @@ function resolveStartInput(
     logger: input.logger ?? options.logger,
     loggerAdapter: input.loggerAdapter ?? options.loggerAdapter,
     profile: input.profile ?? options.profile,
-    readonly: input.readonly ?? options.readonly,
+    readonly: input.readonly ??options.readonly,
     resolveFrom: input.resolveFrom ?? options.resolveFrom,
   };
 }

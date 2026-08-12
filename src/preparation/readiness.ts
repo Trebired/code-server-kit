@@ -36,7 +36,7 @@ function buildReadinessStatus(packageRoot: string, strictWatchdog: boolean): Cod
     ...collectDependencyIssues(dependencies),
   ];
   const launchable = artifacts.every((artifact) => artifact.present || !artifact.runtimeCritical)
-    && dependencies.every((dependency) => dependency.present || !dependency.fatal);
+  &&dependencies.every((dependency) => dependency.present || !dependency.fatal);
   const state = resolveReadinessState(launchable, postinstallScriptPath, dependencies);
 
   return {
@@ -52,29 +52,29 @@ function buildReadinessStatus(packageRoot: string, strictWatchdog: boolean): Cod
     state,
     supportRoot: isDirectory(supportRoot) ? supportRoot : null,
     watchdogMode: dependencies.some((dependency) => dependency.dependency === "@vscode/native-watchdog" && !dependency.present)
-      ? "disabled_fallback"
-      : "native",
+    ? "disabled_fallback"
+    : "native",
   };
 }
 
 function collectArtifactIssues(artifacts: CodeServerReadinessStatus["artifacts"]) {
   return artifacts.flatMap((artifact) => {
-    if (artifact.present || !artifact.runtimeCritical) return [];
-    return [issue("missing_runtime_artifact", "A launch-critical code-server artifact is missing.", {
-      label: artifact.label,
-      path: artifact.path,
-    })];
+      if (artifact.present || !artifact.runtimeCritical) return [];
+      return [issue("missing_runtime_artifact", "A launch-critical code-server artifact is missing.", {
+            label: artifact.label,
+            path: artifact.path,
+      })];
   });
 }
 
 function collectDependencyIssues(dependencies: CodeServerReadinessStatus["dependencies"]) {
   return dependencies.flatMap((dependency) => {
-    if (dependency.present || (!dependency.fatal && dependency.dependency !== "@vscode/native-watchdog")) return [];
-    return [issue(
-      dependency.dependency === "@vscode/native-watchdog" ? "missing_native_watchdog" : "missing_runtime_dependency",
-      dependency.message,
-      { dependency: dependency.dependency, ...dependency.details },
-    )];
+      if (dependency.present || (!dependency.fatal && dependency.dependency !== "@vscode/native-watchdog")) return [];
+      return [issue(
+          dependency.dependency === "@vscode/native-watchdog" ? "missing_native_watchdog" : "missing_runtime_dependency",
+          dependency.message,
+          { dependency: dependency.dependency, ...dependency.details },
+      )];
   });
 }
 

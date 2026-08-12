@@ -34,31 +34,31 @@ function createCodeServerProfilePolicy(
     },
     async persistRuntimeProfile(runtimeDir) {
       return await runProfilePolicyAction(state.inflightPersist, runtimeDir, (key) => {
-        return persistRuntimeProfileInternal(key, normalized);
+          return persistRuntimeProfileInternal(key, normalized);
       });
     },
     async prepareRuntimeProfile(runtimeDir) {
       return await runProfilePolicyAction(state.inflightPrepare, runtimeDir, (key) => {
-        return prepareRuntimeProfileInternal(key, normalized);
+          return prepareRuntimeProfileInternal(key, normalized);
       });
     },
     async readRuntimeSnapshot(runtimeDir) {
       return await readCodeServerProfileSnapshot({
-        items: normalized.items,
-        pathMap: normalized.pathMap,
-        rootDir: path.resolve(runtimeDir),
-        snapshotExtensions: normalized.snapshotExtensions,
+          items: normalized.items,
+          pathMap: normalized.pathMap,
+          rootDir: path.resolve(runtimeDir),
+          snapshotExtensions: normalized.snapshotExtensions,
       });
     },
     async restoreRuntimeProfile(runtimeDir) {
       return await restoreRuntimeProfileInternal(path.resolve(runtimeDir), normalized);
     },
     async schedulePersistRuntimeProfile(runtimeDir) {
-      return await runProfilePolicyAction(state.scheduledPersist, runtimeDir, async (key) => {
-        return await schedulePersistRuntimeProfileInternal(key, normalized, async () => {
-          state.scheduledPersist.delete(key);
-          return await this.persistRuntimeProfile(key);
-        });
+      return await runProfilePolicyAction(state.scheduledPersist, runtimeDir, async(key) => {
+          return await schedulePersistRuntimeProfileInternal(key, normalized, async() => {
+              state.scheduledPersist.delete(key);
+              return await this.persistRuntimeProfile(key);
+          });
       });
     },
   };
@@ -66,9 +66,9 @@ function createCodeServerProfilePolicy(
 
 function createProfilePolicyState() {
   return {
-    inflightPersist: new Map<string, Promise<CodeServerProfilePersistResult | null>>(),
+    inflightPersist: new Map<string, Promise<CodeServerProfilePersistResult|null>>(),
     inflightPrepare: new Map<string, Promise<CodeServerProfilePrepareResult>>(),
-    scheduledPersist: new Map<string, Promise<CodeServerProfilePersistResult | null>>(),
+    scheduledPersist: new Map<string, Promise<CodeServerProfilePersistResult|null>>(),
   };
 }
 
@@ -136,12 +136,12 @@ async function restoreRuntimeProfileInternal(
     const shouldRestore = await shouldRestoreProfile(runtimeDir, policy);
     if (shouldRestore) {
       sync = await syncCodeServerProfile({
-        items: policy.items,
-        pathMap: policy.pathMap,
-        skipMissing: policy.skipMissing,
-        skipUnreadable: policy.skipUnreadable,
-        sourceDir: policy.restoreFrom,
-        targetDir: runtimeDir,
+          items: policy.items,
+          pathMap: policy.pathMap,
+          skipMissing: policy.skipMissing,
+          skipUnreadable: policy.skipUnreadable,
+          sourceDir: policy.restoreFrom,
+          targetDir: runtimeDir,
       });
       restored = sync.changed || sync.copied.length > 0;
     } else {
@@ -153,10 +153,10 @@ async function restoreRuntimeProfileInternal(
 
   const settingsPatched = await applySettingsPatch(runtimeDir, policy.settingsPatch);
   const snapshot = await readCodeServerProfileSnapshot({
-    items: policy.items,
-    pathMap: policy.pathMap,
-    rootDir: runtimeDir,
-    snapshotExtensions: policy.snapshotExtensions,
+      items: policy.items,
+      pathMap: policy.pathMap,
+      rootDir: runtimeDir,
+      snapshotExtensions: policy.snapshotExtensions,
   });
 
   return {
@@ -172,19 +172,19 @@ async function restoreRuntimeProfileInternal(
 async function persistRuntimeProfileInternal(
   runtimeDir: string,
   policy: ReturnType<typeof normalizeProfilePolicyOptions>,
-): Promise<CodeServerProfilePersistResult | null> {
+): Promise<CodeServerProfilePersistResult|null> {
   if (!policy.persistTo) {
     return null;
   }
 
   if (policy.persistPolicy === "always") {
     const sync = await syncCodeServerProfile({
-      items: policy.items,
-      pathMap: policy.pathMap,
-      skipMissing: policy.skipMissing,
-      skipUnreadable: policy.skipUnreadable,
-      sourceDir: runtimeDir,
-      targetDir: policy.persistTo,
+        items: policy.items,
+        pathMap: policy.pathMap,
+        skipMissing: policy.skipMissing,
+        skipUnreadable: policy.skipUnreadable,
+        sourceDir: runtimeDir,
+        targetDir: policy.persistTo,
     });
     const nextSignature = await safeReadSignature(runtimeDir, policy);
     const previousSignature = await safeReadSignature(policy.persistTo, policy);
@@ -198,14 +198,14 @@ async function persistRuntimeProfileInternal(
   }
 
   const result = await persistCodeServerProfileIfChanged({
-    items: policy.items,
-    pathMap: policy.pathMap,
-    signatureMode: policy.signatureMode,
-    skipMissing: policy.skipMissing,
-    skipUnreadable: policy.skipUnreadable,
-    snapshotExtensions: policy.snapshotExtensions,
-    sourceDir: runtimeDir,
-    targetDir: policy.persistTo,
+      items: policy.items,
+      pathMap: policy.pathMap,
+      signatureMode: policy.signatureMode,
+      skipMissing: policy.skipMissing,
+      skipUnreadable: policy.skipUnreadable,
+      snapshotExtensions: policy.snapshotExtensions,
+      sourceDir: runtimeDir,
+      targetDir: policy.persistTo,
   });
   return {
     ...result,
@@ -217,18 +217,18 @@ async function persistRuntimeProfileInternal(
 async function schedulePersistRuntimeProfileInternal(
   runtimeDir: string,
   policy: ReturnType<typeof normalizeProfilePolicyOptions>,
-  persist: () => Promise<CodeServerProfilePersistResult | null>,
-): Promise<CodeServerProfilePersistResult | null> {
+  persist: () => Promise<CodeServerProfilePersistResult|null>,
+): Promise<CodeServerProfilePersistResult|null> {
   if (policy.debounceMs <= 0) {
     return await persist();
   }
 
   return await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      void persist().then(resolve, reject);
-    }, policy.debounceMs);
+      const timer = setTimeout(() => {
+          void persist().then(resolve, reject);
+        }, policy.debounceMs);
 
-    timer.unref?.();
+      timer.unref?.();
   });
 }
 
@@ -241,10 +241,10 @@ async function shouldRestoreProfile(
   }
 
   const snapshot = await readCodeServerProfileSnapshot({
-    items: policy.items,
-    pathMap: policy.pathMap,
-    rootDir: runtimeDir,
-    snapshotExtensions: policy.snapshotExtensions,
+      items: policy.items,
+      pathMap: policy.pathMap,
+      rootDir: runtimeDir,
+      snapshotExtensions: policy.snapshotExtensions,
   });
   return !snapshot.entries.some((entry) => entry.present);
 }
@@ -327,10 +327,10 @@ async function safeReadSignature(
 ): Promise<string> {
   try {
     return await readCodeServerProfileSignature({
-      items: policy.items,
-      pathMap: policy.pathMap,
-      rootDir,
-      snapshotExtensions: policy.snapshotExtensions,
+        items: policy.items,
+        pathMap: policy.pathMap,
+        rootDir,
+        snapshotExtensions: policy.snapshotExtensions,
     });
   } catch {
     return "";

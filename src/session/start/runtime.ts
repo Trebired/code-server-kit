@@ -1,4 +1,3 @@
-
 import { summarizeCodeServerBrowserDiagnostics } from "#8392d406df71";
 import { resolveLogger } from "#5a29135e56c1";
 import { ensureCodeServerPrepared } from "#1fwnycc9wdnp";
@@ -38,8 +37,8 @@ async function prepareStartRuntime(context: SessionStartContext): Promise<Sessio
   const correlationId = createSessionCorrelationId(sessionKey, context.specHash);
   const backendCheckpoints: import("#3c8d8166992a").CodeServerSessionBackendCheckpoint[] = [];
   const readonlyFilesystem = launchStrategy === "systemd"
-    ? launchPlan.readonlyEnforcement.systemdFilesystem
-    : launchPlan.readonlyEnforcement.directFilesystem;
+  ? launchPlan.readonlyEnforcement.systemdFilesystem
+  : launchPlan.readonlyEnforcement.directFilesystem;
 
   await mkdirp(context.paths.sessionDir);
   logPlannedStart(context, correlationId, launchStrategy, readinessTarget, readonlyFilesystem, backendCheckpoints);
@@ -59,14 +58,14 @@ async function prepareStartRuntime(context: SessionStartContext): Promise<Sessio
 async function tryReuseExistingSession(
   context: SessionStartContext,
   runtime: SessionStartRuntime,
-): Promise<CodeServerSessionStartResult | null> {
+): Promise<CodeServerSessionStartResult|null> {
   const existing = context.existing;
   if (!existing) return null;
 
   const status = await probeSessionRecord(existing, context.options.sanitizer);
   if (existing.specHash === context.specHash && status.ready) {
     await writeSessionRecord(createReusedRecord(context, runtime, existing), context.paths.recordPath);
-    const reused = { ...status, state: "reusing_existing" as const };
+    const reused = { ...status, state: "reusing_existing"as const };
     return {
       created: false,
       diagnostics: reused.diagnostics,
@@ -99,11 +98,11 @@ async function prepareRuntimeProfile(
 
   const preparedProfile = await runtime.profilePolicy.prepareRuntimeProfile(context.launchPlan.userDataDir);
   pushBackendCheckpoint(runtime.backendCheckpoints, "profile", "prepared runtime profile", {
-    persistTarget: preparedProfile.persistTarget,
-    restored: preparedProfile.restore.restored,
-    runtimeDir: preparedProfile.runtimeDir,
-    settingsPatched: preparedProfile.restore.settingsPatched,
-    skippedRestore: preparedProfile.restore.skipped,
+      persistTarget: preparedProfile.persistTarget,
+      restored: preparedProfile.restore.restored,
+      runtimeDir: preparedProfile.runtimeDir,
+      settingsPatched: preparedProfile.restore.settingsPatched,
+      skippedRestore: preparedProfile.restore.skipped,
   });
 }
 
@@ -112,17 +111,17 @@ async function createLaunchingRecord(
   runtime: SessionStartRuntime,
 ): Promise<CodeServerSessionRecord> {
   const baseRecord = createBaseRecord({
-    browserSummary: summarizeCodeServerBrowserDiagnostics(runtime.browserBridge?.getEvents() ?? []),
-    correlationId: runtime.correlationId,
-    lastStartSummary: null,
-    launchPlan: context.launchPlan,
-    launchStrategy: runtime.launchStrategy,
-    metadata: context.options.metadata ?? null,
-    preparation: runtime.preparation,
-    readinessTarget: runtime.readinessTarget,
-    sessionKey: context.sessionKey,
-    specHash: context.specHash,
-    watchdogMode: runtime.preparation.watchdogMode,
+      browserSummary: summarizeCodeServerBrowserDiagnostics(runtime.browserBridge?.getEvents() ?? []),
+      correlationId: runtime.correlationId,
+      lastStartSummary: null,
+      launchPlan: context.launchPlan,
+      launchStrategy: runtime.launchStrategy,
+      metadata: context.options.metadata ?? null,
+      preparation: runtime.preparation,
+      readinessTarget: runtime.readinessTarget,
+      sessionKey: context.sessionKey,
+      specHash: context.specHash,
+      watchdogMode: runtime.preparation.watchdogMode,
   });
   await writeSessionRecord({ ...baseRecord, state: "launching", updatedAt: nowIso() }, context.paths.recordPath);
   return baseRecord;
@@ -130,17 +129,17 @@ async function createLaunchingRecord(
 
 function buildRequestedSpecHash(options: CodeServerSessionRequest): string {
   return hashNormalizedSpec({
-    browser: normalizeSessionBrowserOptions(options.browser)?.policy ?? null,
-    env: options.env ?? {},
-    host: options.host ?? null,
-    launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
-    port: options.port ?? null,
-    profile: normalizeProfileConfig(options.profile),
-    readinessTarget: options.readinessTarget ?? null,
-    readonly: options.readonly ?? null,
-    systemd: options.systemd ?? null,
-    trustedOrigins: options.trustedOrigins ?? [],
-    workspacePath: options.workspacePath ?? null,
+      browser: normalizeSessionBrowserOptions(options.browser)?.policy ?? null,
+      env: options.env ?? {},
+      host: options.host ?? null,
+      launchStrategy: options.launchStrategy ?? DEFAULT_LAUNCH_STRATEGY,
+      port: options.port ?? null,
+      profile: normalizeProfileConfig(options.profile),
+      readinessTarget: options.readinessTarget ?? null,
+      readonly: options.readonly ??null,
+      systemd: options.systemd ?? null,
+      trustedOrigins: options.trustedOrigins ?? [],
+      workspacePath: options.workspacePath ?? null,
   });
 }
 
@@ -152,10 +151,10 @@ async function resolvePreparationStatus(
     return launchPlan.preparationStatus;
   }
   return (await ensureCodeServerPrepared({
-    logger: options.logger,
-    loggerAdapter: options.loggerAdapter,
-    resolveFrom: options.resolveFrom,
-    strictWatchdog: options.preparation?.strictWatchdog,
+        logger: options.logger,
+        loggerAdapter: options.loggerAdapter,
+        resolveFrom: options.resolveFrom,
+        strictWatchdog: options.preparation?.strictWatchdog,
   })).status;
 }
 

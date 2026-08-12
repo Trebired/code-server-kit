@@ -91,7 +91,7 @@ type CodeServerSessionRecord = {
   health: CodeServerSessionHealth;
   lastStartSummary?: string | null;
   launchStrategy: CodeServerLaunchStrategy;
-  metadata?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>|null;
   pid: number | null;
   port: number;
   preparation: CodeServerPreparationStatus | null;
@@ -122,7 +122,7 @@ type CodeServerSessionStatus = {
   health: CodeServerSessionHealth;
   lastStartSummary: string | null;
   launchStrategy: CodeServerLaunchStrategy;
-  metadata?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>|null;
   pid: number | null;
   port: number;
   preparation: CodeServerPreparationStatus | null;
@@ -176,7 +176,7 @@ type CodeServerSessionManagerOptions = {
   resolveFrom?: string;
 };
 
-type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
+type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions& {
   failureProbe?: CodeServerReadyFailureProbe;
   launchStrategy?: CodeServerLaunchStrategy;
   logger?: CodeServerKitLogger;
@@ -193,13 +193,16 @@ type CodeServerSessionRequest = CreateCodeServerLaunchPlanOptions & {
 };
 
 type CodeServerSessionManager = {
-  getStatus(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionStatus | null>;
-  readDiagnostics(options: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null>;
+  getStatus(
+    options: Pick<CodeServerSessionRequest,
+    "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">
+  ): Promise<CodeServerSessionStatus|null>;
+  readDiagnostics(options: Pick<CodeServerSessionRequest, "sanitizer"|"sessionKey"|"stateRoot">): Promise<CodeServerSessionDiagnostics|null>;
   restart(options: CodeServerSessionRequest): Promise<CodeServerSessionRestartResult>;
   start(options: CodeServerSessionRequest): Promise<CodeServerSessionStartResult>;
-  stop(options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
-    signal?: NodeJS.Signals | number;
-  }): Promise<CodeServerSessionStopResult | null>;
+  stop(options: Pick<CodeServerSessionRequest, "logger"|"loggerAdapter"|"profile"|"sanitizer"|"sessionKey"|"stateRoot">& {
+      signal?: NodeJS.Signals | number;
+  }): Promise<CodeServerSessionStopResult|null>;
 };
 
 export type {

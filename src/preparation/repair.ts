@@ -35,8 +35,8 @@ async function repairCodeServerInstall(
   }
 
   log.info("prepare:repair:start", "repairing code-server install", {
-    packageRoot: statusBefore.packageRoot,
-    state: statusBefore.state,
+      packageRoot: statusBefore.packageRoot,
+      state: statusBefore.state,
   });
   invalidateReadinessCache(statusBefore.packageRoot, readinessCache);
   const statusAfter = getCodeServerReadinessStatus(readinessCache, options);
@@ -45,11 +45,11 @@ async function repairCodeServerInstall(
   const diagnostic = createRepairDiagnostic(statusAfter, actions, outcome);
 
   log.info("prepare:repair:done", "finished repairing code-server install", {
-    actionCount: actions.length,
-    changed,
-    outcome,
-    packageRoot: statusAfter.packageRoot,
-    state: statusAfter.state,
+      actionCount: actions.length,
+      changed,
+      outcome,
+      packageRoot: statusAfter.packageRoot,
+      state: statusAfter.state,
   });
 
   return {
@@ -66,14 +66,14 @@ async function collectRepairActions(statusBefore: CodeServerReadinessStatus): Pr
   const actions: CodeServerRepairAction[] = [];
   if (statusBefore.postinstallScriptPath) {
     actions.push(await runRepairAction({
-      command: "sh",
-      args: [statusBefore.postinstallScriptPath],
-      cwd: statusBefore.packageRoot,
-      details: {
-        kind: "bootstrap",
-        scriptPath: statusBefore.postinstallScriptPath,
-      },
-      label: "rerun code-server bootstrap",
+          command: "sh",
+          args: [statusBefore.postinstallScriptPath],
+          cwd: statusBefore.packageRoot,
+          details: {
+            kind: "bootstrap",
+            scriptPath: statusBefore.postinstallScriptPath,
+          },
+          label: "rerun code-server bootstrap",
     }));
   }
 
@@ -86,14 +86,14 @@ async function collectRepairActions(statusBefore: CodeServerReadinessStatus): Pr
   );
   if (shouldRepairRipgrep(statusBefore, ripgrepPackageJsonPath)) {
     actions.push(await runRepairAction({
-      command: "npm",
-      args: ["rebuild", "@vscode/ripgrep", "--foreground-scripts"],
-      cwd: path.dirname(path.dirname(path.dirname(ripgrepPackageJsonPath))),
-      details: {
-        dependency: "@vscode/ripgrep",
-        kind: "dependency-postinstall",
-      },
-      label: "repair nested @vscode/ripgrep runtime dependency",
+          command: "npm",
+          args: ["rebuild", "@vscode/ripgrep", "--foreground-scripts"],
+          cwd: path.dirname(path.dirname(path.dirname(ripgrepPackageJsonPath))),
+          details: {
+            dependency: "@vscode/ripgrep",
+            kind: "dependency-postinstall",
+          },
+          label: "repair nested @vscode/ripgrep runtime dependency",
     }));
   }
   return actions;
@@ -101,9 +101,9 @@ async function collectRepairActions(statusBefore: CodeServerReadinessStatus): Pr
 
 function shouldRepairRipgrep(statusBefore: CodeServerReadinessStatus, ripgrepPackageJsonPath: string): boolean {
   return isFile(ripgrepPackageJsonPath)
-    && statusBefore.dependencies.some((dependency) => {
+  &&statusBefore.dependencies.some((dependency) => {
       return dependency.dependency === "@vscode/ripgrep" && !dependency.present;
-    });
+  });
 }
 
 function resolveRepairOutcome(
@@ -122,24 +122,24 @@ function createRepairDiagnostic(
 ) {
   if (statusAfter.launchable) return null;
   return collectCodeServerStartupDiagnostics({
-    category: "preparation_failed",
-    error: new CodeServerPreparationError("The code-server package still is not launchable after repair attempts.", {
-      actions,
-      issues: statusAfter.issues,
-      packageRoot: statusAfter.packageRoot,
-    }),
-    hints: repairHints(statusAfter),
-    phase: "repair",
-    retryable: outcome === "partially_repaired",
+      category: "preparation_failed",
+      error: new CodeServerPreparationError("The code-server package still is not launchable after repair attempts.", {
+          actions,
+          issues: statusAfter.issues,
+          packageRoot: statusAfter.packageRoot,
+      }),
+      hints: repairHints(statusAfter),
+      phase: "repair",
+      retryable: outcome === "partially_repaired",
   });
 }
 
 async function runRepairAction(options: {
-  args: string[];
-  command: string;
-  cwd: string;
-  details: Record<string, unknown>;
-  label: string;
+    args: string[];
+    command: string;
+    cwd: string;
+    details: Record<string, unknown>;
+    label: string;
 }): Promise<CodeServerRepairAction> {
   try {
     const output = await runCommand(options.command, options.args, options.cwd);
@@ -153,8 +153,8 @@ async function runRepairAction(options: {
     };
   } catch (error) {
     const normalized = normalizeCodeServerStartupFailure(error, {
-      phase: "repair",
-      retryable: true,
+        phase: "repair",
+        retryable: true,
     });
     return {
       changed: false,
@@ -172,28 +172,28 @@ async function runRepairAction(options: {
 
 async function runCommand(command: string, args: string[], cwd: string): Promise<string> {
   return await new Promise((resolve, reject) => {
-    execFile(command, args, {
-      cwd,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        npm_config_user_agent: process.env.npm_config_user_agent ?? "npm/10 node/v22 linux x64",
-        npm_config_unsafe_perm: process.env.npm_config_unsafe_perm ?? "true",
-      },
-    }, (error, stdout, stderr) => {
-      const output = [stdout, stderr].filter(Boolean).join("\n").trim();
-      if (error) {
-        reject(new CodeServerPreparationError("Could not run the requested code-server repair action.", {
-          args,
-          cause: error.message,
-          command,
+      execFile(command, args, {
           cwd,
-          output,
-        }));
-        return;
-      }
-      resolve(output);
-    });
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            npm_config_user_agent: process.env.npm_config_user_agent ?? "npm/10 node/v22 linux x64",
+            npm_config_unsafe_perm: process.env.npm_config_unsafe_perm ?? "true",
+          },
+        }, (error, stdout, stderr) => {
+          const output = [stdout, stderr].filter(Boolean).join("\n").trim();
+          if (error) {
+            reject(new CodeServerPreparationError("Could not run the requested code-server repair action.", {
+                  args,
+                  cause: error.message,
+                  command,
+                  cwd,
+                  output,
+            }));
+            return;
+          }
+          resolve(output);
+      });
   });
 }
 

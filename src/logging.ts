@@ -18,10 +18,10 @@ function resolveLogger(
   adapter?: CodeServerKitLoggerAdapter,
 ): NormalizedCodeServerKitLogger {
   return resolveSharedLogger({
-    adapter,
-    fallback: "console",
-    logger,
-    source: CODE_SERVER_KIT_PACKAGE_NAME,
+      adapter,
+      fallback: "console",
+      logger,
+      source: CODE_SERVER_KIT_PACKAGE_NAME,
   }) as NormalizedCodeServerKitLogger;
 }
 

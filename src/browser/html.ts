@@ -9,13 +9,13 @@ import type {
 
 function transformCodeServerHtml(options: TransformCodeServerHtmlOptions): string {
   const script = createBrowserDiagnosticsScript({
-    bridgeProperty: options.diagnostics?.bridgeProperty,
-    embed: options.embed,
-    policy: options.diagnostics?.policy,
-    readonly: options.readonly,
-    sessionKey: options.sessionKey,
-    theme: options.theme,
-    transport: normalizeTransport(options.diagnostics?.transport).getRuntimeConfig(),
+      bridgeProperty: options.diagnostics?.bridgeProperty,
+      embed: options.embed,
+      policy: options.diagnostics?.policy,
+      readonly: options.readonly,
+      sessionKey: options.sessionKey,
+      theme: options.theme,
+      transport: normalizeTransport(options.diagnostics?.transport).getRuntimeConfig(),
   });
 
   let html = applyAppearance(options.html, options.appearance);
@@ -29,9 +29,9 @@ function transformCodeServerHtml(options: TransformCodeServerHtmlOptions): strin
   }
 
   return createHtmlInjectionPlan({
-    nonce: options.cspNonce,
-    script,
-    strategy: options.injectStrategy,
+      nonce: options.cspNonce,
+      script,
+      strategy: options.injectStrategy,
   }).apply(html);
 }
 
@@ -79,8 +79,8 @@ function applyAppearance(html: string, options?: CodeServerHtmlAppearanceOptions
 
   if (options.bodyData && Object.keys(options.bodyData).length > 0) {
     const attributes = Object.entries(options.bodyData)
-      .map(([key, value]) => ` data-${escapeHtmlAttribute(key)}="${escapeHtmlAttribute(value)}"`)
-      .join("");
+    .map(([key, value]) => ` data-${escapeHtmlAttribute(key)}="${escapeHtmlAttribute(value)}"`)
+    .join("");
     next = next.replace(/<body([^>]*)>/i, `<body$1${attributes}>`);
   }
 

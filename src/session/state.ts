@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+import { hashJsonValue } from "#0c5klbukhdml";
 import { createCodeServerProfilePolicy } from "#4a168ae26562";
 import { createReadonlySessionPolicy } from "#3nojkzzzf31b";
 import { summarizeCodeServerSystemdJournal } from "#4d930a954677";
@@ -25,20 +26,20 @@ const handles = new Map<string, CodeServerProcessHandle>();
 const inflightStarts = new Map<string, {
   promise: Promise<import("#3c8d8166992a").CodeServerSessionStartResult>;
   specHash: string;
-}>();
+}> ();
 
 function createBaseRecord(options: {
-  browserSummary: CodeServerSessionRecord["browserSummary"];
-  correlationId: string;
-  lastStartSummary: string | null;
-  launchPlan: Awaited<ReturnType<typeof import("#0c8da394780f").createCodeServerLaunchPlan>>;
-  launchStrategy: CodeServerSessionRecord["launchStrategy"];
-  metadata: Record<string, unknown> | null;
-  preparation: { watchdogMode: CodeServerWatchdogMode };
-  readinessTarget: CodeServerSessionRecord["readinessTarget"];
-  sessionKey: string;
-  specHash: string;
-  watchdogMode: CodeServerWatchdogMode;
+    browserSummary: CodeServerSessionRecord["browserSummary"];
+    correlationId: string;
+    lastStartSummary: string | null;
+    launchPlan: Awaited<ReturnType<typeof import("#0c8da394780f").createCodeServerLaunchPlan>>;
+    launchStrategy: CodeServerSessionRecord["launchStrategy"];
+    metadata: Record<string, unknown>|null;
+    preparation: { watchdogMode: CodeServerWatchdogMode };
+    readinessTarget: CodeServerSessionRecord["readinessTarget"];
+    sessionKey: string;
+    specHash: string;
+    watchdogMode: CodeServerWatchdogMode;
 }): CodeServerSessionRecord {
   return {
     bindAddr: options.launchPlan.bindAddr,
@@ -72,15 +73,15 @@ function createBaseRecord(options: {
 }
 
 function createDiagnosticsSnapshot(options: {
-  backendCheckpoints: CodeServerSessionBackendCheckpoint[];
-  browserEvents: NonNullable<CodeServerSessionDiagnostics["browserEvents"]>;
-  browserSummary: CodeServerSessionRecord["browserSummary"];
-  correlationId: string;
-  handle: CodeServerProcessHandle | null;
-  journalTail: string;
-  normalizedFailure: CodeServerSessionDiagnostics["normalizedFailure"];
-  readyElapsedMs: number | null;
-  summary: Record<string, unknown>;
+    backendCheckpoints: CodeServerSessionBackendCheckpoint[];
+    browserEvents: NonNullable<CodeServerSessionDiagnostics["browserEvents"]>;
+    browserSummary: CodeServerSessionRecord["browserSummary"];
+    correlationId: string;
+    handle: CodeServerProcessHandle | null;
+    journalTail: string;
+    normalizedFailure: CodeServerSessionDiagnostics["normalizedFailure"];
+    readyElapsedMs: number | null;
+    summary: Record<string, unknown>;
 }): CodeServerSessionDiagnosticsSnapshot {
   return {
     backendCheckpoints: options.backendCheckpoints,
@@ -166,12 +167,12 @@ function mergeSessionBrowserOptions(
 ): CodeServerSessionBrowserOptions | undefined {
   if (!defaults && !overrides) return undefined;
   return normalizeSessionBrowserOptions({
-    bridge: overrides?.bridge ?? defaults?.bridge,
-    integration: overrides?.integration ?? defaults?.integration,
-    policy: {
-      ...(defaults?.policy ?? {}),
-      ...(overrides?.policy ?? {}),
-    },
+      bridge: overrides?.bridge ?? defaults?.bridge,
+      integration: overrides?.integration ?? defaults?.integration,
+      policy: {
+        ...(defaults?.policy ?? {}),
+        ...(overrides?.policy ?? {}),
+      },
   }) ?? undefined;
 }
 
@@ -212,10 +213,6 @@ function pushBackendCheckpoint(
   details: Record<string, unknown>,
 ): void {
   checkpoints.push({ details, phase, summary, timestamp: nowIso() });
-}
-
-function hashNormalizedSpec(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 function deriveDeadState(record: CodeServerSessionRecord): CodeServerSessionState {
@@ -275,9 +272,9 @@ function createEmptyStopResult(sessionKey: string): CodeServerSessionStopResult 
 
 function isProfilePolicy(value: unknown): value is CodeServerProfilePolicy {
   return Boolean(value)
-    && typeof value === "object"
-    && "prepareRuntimeProfile" in value
-    && typeof (value as CodeServerProfilePolicy).prepareRuntimeProfile === "function";
+  &&typeof value === "object"
+  &&"prepareRuntimeProfile"in value
+  &&typeof(value as CodeServerProfilePolicy).prepareRuntimeProfile === "function";
 }
 
 export {
@@ -287,7 +284,7 @@ export {
   createSessionCorrelationId,
   deriveDeadState,
   handles,
-  hashNormalizedSpec,
+  hashJsonValue as hashNormalizedSpec,
   inflightStarts,
   isLiveOrStartingState,
   mergeSessionBrowserOptions,

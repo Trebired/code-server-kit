@@ -1,13 +1,32 @@
 import { summarizeCodeServerBrowserDiagnostics } from "#8392d406df71";
-import { normalizeCodeServerStartupFailure } from "#585f3a8d1af0";
-import { CodeServerInvalidConfigurationError, CodeServerSessionLifecycleError, isCodeServerKitError } from "#8974ac53d713";
+import {
+  CodeServerInvalidConfigurationError,
+} from "#8974ac53d713";
 import { launchCodeServerProcess } from "#58b1c427e96f";
-import { waitForCodeServerReady } from "#37ar8glh8po5";
-import { launchCodeServerWithSystemd, summarizeCodeServerSystemdJournal } from "#4d930a954677";
-import type { CodeServerSessionFailure, CodeServerSessionRecord, CodeServerSessionStartResult } from "#3c8d8166992a";
-import { createDiagnosticsSnapshot, formatReadyHost, handles, nowIso, pushBackendCheckpoint, safeSystemdSummary, terminateHandle, writeDiagnosticsFile, writeSessionRecord } from "#5abxg3204o0r";
-import type { SessionReadyRuntime, SessionStartContext, SessionStartRuntime } from "./shared.js";
-import { probeSessionRecord, readCodeServerSessionDiagnostics } from "#jfr5p9teg08n";
+import { waitForCodeServerReady } from "#vbzbeb8hf107";
+import {
+  launchCodeServerWithSystemd,
+  summarizeCodeServerSystemdJournal,
+} from "#4d930a954677";
+import type { CodeServerSessionRecord, CodeServerSessionStartResult } from "#3c8d8166992a";
+import {
+  createDiagnosticsSnapshot,
+  formatReadyHost,
+  handles,
+  nowIso,
+  pushBackendCheckpoint,
+  writeDiagnosticsFile,
+  writeSessionRecord,
+} from "#5abxg3204o0r";
+import type {
+  SessionReadyRuntime,
+  SessionStartContext,
+  SessionStartRuntime,
+} from "./shared.js";
+import {
+  probeSessionRecord,
+  readCodeServerSessionDiagnostics,
+} from "#jfr5p9teg08n";
 
 const DEFAULT_READY_RETRY_INTERVAL_MS = 100;
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
@@ -33,58 +52,34 @@ async function finalizeReadyStart(
   const browserEvents = runtime.browserBridge?.getEvents() ?? [];
   const browserSummary = summarizeCodeServerBrowserDiagnostics(browserEvents);
   const diagnostics = createDiagnosticsSnapshot({
-    backendCheckpoints: runtime.backendCheckpoints,
-    browserEvents,
-    browserSummary,
-    correlationId: runtime.correlationId,
-    handle: readyRuntime.handle,
-    journalTail: readyRuntime.journalTail,
-    normalizedFailure: null,
-    readyElapsedMs: readyRuntime.readiness.elapsedMs,
-    summary: {
+      backendCheckpoints: runtime.backendCheckpoints,
+      browserEvents,
       browserSummary,
-      checkpoints: readyRuntime.readiness.checkpoints,
       correlationId: runtime.correlationId,
-      launchStrategy: runtime.launchStrategy,
-      profile: runtime.profilePolicy?.describe() ?? null,
-      readonlyEnforcement: runtime.readonlyFilesystem,
-      readinessTarget: runtime.readinessTarget,
-    },
+      handle: readyRuntime.handle,
+      journalTail: readyRuntime.journalTail,
+      normalizedFailure: null,
+      readyElapsedMs: readyRuntime.readiness.elapsedMs,
+      summary: {
+        browserSummary,
+        checkpoints: readyRuntime.readiness.checkpoints,
+        correlationId: runtime.correlationId,
+        launchStrategy: runtime.launchStrategy,
+        profile: runtime.profilePolicy?.describe() ?? null,
+        readonlyEnforcement: runtime.readonlyFilesystem,
+        readinessTarget: runtime.readinessTarget,
+      },
   });
-  const record = createReadyRecord(context, runtime, baseRecord, diagnostics, readyRuntime.handle);
+  const record = createReadyRecord(
+    context,
+    runtime,
+    baseRecord,
+    diagnostics,
+    readyRuntime.handle,
+  );
   await writeSessionRecord(record, context.paths.recordPath);
   await writeDiagnosticsFile(record, context.paths);
   return await buildStartResult(context, runtime, record, readyRuntime);
-}
-
-async function finalizeFailedStart(
-  context: SessionStartContext,
-  runtime: SessionStartRuntime,
-  baseRecord: CodeServerSessionRecord,
-  error: unknown,
-): Promise<never> {
-  const normalized = normalizeCodeServerStartupFailure(error, {
-    browserEvents: runtime.browserBridge?.getEvents() ?? [],
-    checkpoints: [],
-    launchStrategy: runtime.launchStrategy,
-    preparationStatus: runtime.preparation,
-    sanitizer: context.options.sanitizer,
-    watchdogMode: runtime.preparation.watchdogMode,
-  });
-  const handle = handles.get(context.sessionKey) ?? null;
-  const failure = createFailure(normalized);
-  await stopFailedHandle(context.sessionKey, handle);
-
-  const record = await createFailedRecord(context, runtime, baseRecord, normalized, failure, handle);
-  await writeSessionRecord(record, context.paths.recordPath);
-  await writeDiagnosticsFile(record, context.paths);
-
-  if (isCodeServerKitError(error)) throw error;
-  throw new CodeServerSessionLifecycleError("Could not start the code-server session.", {
-    cause: normalized.summary,
-    sessionKey: context.sessionKey,
-    stateRoot: context.stateRoot,
-  });
 }
 
 async function launchSessionRuntime(
@@ -104,12 +99,17 @@ async function launchDirectRuntime(
 ) {
   const handle = await launchCodeServerProcess({ plan: context.launchPlan });
   handles.set(context.sessionKey, handle);
-  pushBackendCheckpoint(runtime.backendCheckpoints, "launch", "spawned direct code-server process", {
-    args: context.launchPlan.args,
-    command: context.launchPlan.command,
-    readonlyEnforcement: runtime.readonlyFilesystem,
-    pid: handle.pid ?? null,
-  });
+  pushBackendCheckpoint(
+    runtime.backendCheckpoints,
+    "launch",
+    "spawned direct code-server process",
+    {
+      args: context.launchPlan.args,
+      command: context.launchPlan.command,
+      readonlyEnforcement: runtime.readonlyFilesystem,
+      pid: handle.pid ?? null,
+    },
+  );
   return handle;
 }
 
@@ -124,19 +124,26 @@ async function launchSystemdRuntime(
     );
   }
   await launchCodeServerWithSystemd({
-    extraProperties: context.options.systemd.extraProperties,
-    logger: context.options.logger,
-    loggerAdapter: context.options.loggerAdapter,
-    plan: context.launchPlan,
-    scope: context.options.systemd.scope,
-    sessionKey: context.sessionKey,
-    unitName: context.options.systemd.unitName,
+      extraProperties: context.options.systemd.extraProperties,
+      logger: context.options.logger,
+      loggerAdapter: context.options.loggerAdapter,
+      plan: context.launchPlan,
+      scope: context.options.systemd.scope,
+      sessionKey: context.sessionKey,
+      unitName: context.options.systemd.unitName,
   });
-  pushBackendCheckpoint(runtime.backendCheckpoints, "launch", "launched code-server with systemd transient unit", {
-    readonlyEnforcement: runtime.readonlyFilesystem,
-    scope: context.options.systemd.scope,
-    unitName: context.options.systemd.unitName ?? `package-code-server-kit-${context.sessionKey}.service`,
-  });
+  pushBackendCheckpoint(
+    runtime.backendCheckpoints,
+    "launch",
+    "launched code-server with systemd transient unit",
+    {
+      readonlyEnforcement: runtime.readonlyFilesystem,
+      scope: context.options.systemd.scope,
+      unitName:
+      context.options.systemd.unitName ??
+      `package-code-server-kit-${context.sessionKey}.service`,
+    },
+  );
 }
 
 async function waitForSessionReady(
@@ -145,25 +152,31 @@ async function waitForSessionReady(
   handle: SessionReadyRuntime["handle"],
 ) {
   return await waitForCodeServerReady({
-    browser: {
-      bridge: runtime.browserBridge,
+      browser: {
+        bridge: runtime.browserBridge,
+        timeoutMs: context.options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
+      },
+      failureProbe: context.options.failureProbe,
+      host: context.launchPlan.host,
+      httpUrl: `http://${formatReadyHost(context.launchPlan.host)}:${context.launchPlan.port}/`,
+      port: context.launchPlan.port,
+      process: handle ?? undefined,
+      retryIntervalMs:
+      context.options.readinessRetryIntervalMs ??
+      DEFAULT_READY_RETRY_INTERVAL_MS,
+      target: runtime.readinessTarget,
       timeoutMs: context.options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
-    },
-    failureProbe: context.options.failureProbe,
-    host: context.launchPlan.host,
-    httpUrl: `http://${formatReadyHost(context.launchPlan.host)}:${context.launchPlan.port}/`,
-    port: context.launchPlan.port,
-    process: handle ?? undefined,
-    retryIntervalMs: context.options.readinessRetryIntervalMs ?? DEFAULT_READY_RETRY_INTERVAL_MS,
-    target: runtime.readinessTarget,
-    timeoutMs: context.options.readinessTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
-    websocketUrl: context.options.websocketUrl,
+      websocketUrl: context.options.websocketUrl,
   });
 }
 
 function recordReadyCheckpoints(
   runtime: SessionStartRuntime,
-  checkpoints: Array<{ details: Record<string, unknown>; phase: import("#3c8d8166992a").CodeServerSessionBackendCheckpoint["phase"]; target: string; }>,
+  checkpoints: Array<{
+    details: Record<string, unknown>;
+    phase: import("#3c8d8166992a").CodeServerSessionBackendCheckpoint["phase"];
+    target: string;
+  }>,
 ): void {
   for (const checkpoint of checkpoints) {
     pushBackendCheckpoint(
@@ -183,9 +196,11 @@ async function readJournalTail(
     return "";
   }
   return await summarizeCodeServerSystemdJournal({
-    lines: 50,
-    scope: context.options.systemd.scope,
-    unitName: context.options.systemd.unitName ?? `package-code-server-kit-${context.sessionKey}.service`,
+      lines: 50,
+      scope: context.options.systemd.scope,
+      unitName:
+      context.options.systemd.unitName ??
+      `package-code-server-kit-${context.sessionKey}.service`,
   });
 }
 
@@ -198,7 +213,9 @@ function createReadyRecord(
 ): CodeServerSessionRecord {
   return {
     ...baseRecord,
-    browserSummary: summarizeCodeServerBrowserDiagnostics(runtime.browserBridge?.getEvents() ?? []),
+    browserSummary: summarizeCodeServerBrowserDiagnostics(
+      runtime.browserBridge?.getEvents() ?? [],
+    ),
     correlationId: runtime.correlationId,
     diagnostics,
     health: "ready",
@@ -226,9 +243,9 @@ async function buildStartResult(
   return {
     created: true,
     diagnostics: await readCodeServerSessionDiagnostics({
-      sanitizer: context.options.sanitizer,
-      sessionKey: context.sessionKey,
-      stateRoot: context.stateRoot,
+        sanitizer: context.options.sanitizer,
+        sessionKey: context.sessionKey,
+        stateRoot: context.stateRoot,
     }),
     handle: readyRuntime.handle,
     launchPlan: context.launchPlan,
@@ -247,91 +264,5 @@ async function refreshRuntimeProfile(
   await runtime.profilePolicy.prepareRuntimeProfile(runtimeDir);
 }
 
-function createFailure(
-  normalized: ReturnType<typeof normalizeCodeServerStartupFailure>,
-): CodeServerSessionFailure {
-  return {
-    code: normalized.code,
-    details: normalized.details,
-    hints: normalized.hints,
-    message: normalized.summary,
-    name: normalized.name,
-    phase: normalized.phase,
-    retryable: normalized.retryable,
-  };
-}
-
-async function stopFailedHandle(
-  sessionKey: string,
-  handle: SessionReadyRuntime["handle"],
-): Promise<void> {
-  if (!handle) return;
-  await terminateHandle(handle, "SIGTERM");
-  handles.delete(sessionKey);
-}
-
-async function createFailedRecord(
-  context: SessionStartContext,
-  runtime: SessionStartRuntime,
-  baseRecord: CodeServerSessionRecord,
-  normalized: ReturnType<typeof normalizeCodeServerStartupFailure>,
-  failure: CodeServerSessionFailure,
-  handle: SessionReadyRuntime["handle"],
-): Promise<CodeServerSessionRecord> {
-  const browserEvents = runtime.browserBridge?.getEvents() ?? [];
-  const browserSummary = summarizeCodeServerBrowserDiagnostics(browserEvents);
-  const journalTail = await readFailedJournalTail(context, runtime);
-  return {
-    ...baseRecord,
-    browserSummary,
-    correlationId: runtime.correlationId,
-    diagnostics: createDiagnosticsSnapshot({
-      backendCheckpoints: runtime.backendCheckpoints,
-      browserEvents,
-      browserSummary,
-      correlationId: runtime.correlationId,
-      handle,
-      journalTail,
-      normalizedFailure: normalized,
-      readyElapsedMs: null,
-      summary: {
-        correlationId: runtime.correlationId,
-        launchStrategy: runtime.launchStrategy,
-        profile: runtime.profilePolicy?.describe() ?? null,
-        readinessTarget: runtime.readinessTarget,
-      },
-    }),
-    failure,
-    health: "failed",
-    lastStartSummary: normalized.summary,
-    pid: handle?.pid ?? null,
-    preparation: runtime.preparation,
-    readinessTarget: runtime.readinessTarget,
-    sanitizedDiagnostics: normalized.sanitized ?? null,
-    startedAt: nowIso(),
-    state: "failed",
-    systemdScope: context.options.systemd?.scope ?? null,
-    unitName: context.options.systemd?.unitName ?? null,
-    updatedAt: nowIso(),
-  };
-}
-
-async function readFailedJournalTail(
-  context: SessionStartContext,
-  runtime: SessionStartRuntime,
-): Promise<string> {
-  if (
-    runtime.launchStrategy !== "systemd"
-    || !context.options.systemd?.scope
-    || !context.options.systemd.unitName
-  ) {
-    return "";
-  }
-  return await safeSystemdSummary(context.options.systemd.scope, context.options.systemd.unitName);
-}
-
-export {
-  finalizeFailedStart,
-  finalizeReadyStart,
-  launchAndWaitForReady,
-};
+export { finalizeFailedStart } from "./failure.js";
+export { finalizeReadyStart, launchAndWaitForReady };

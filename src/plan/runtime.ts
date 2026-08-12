@@ -29,13 +29,13 @@ async function createCodeServerIntegrationPlan(options: CreateCodeServerLaunchPl
   } catch (error) {
     if (
       error instanceof CodeServerLaunchPlanningError
-      || error instanceof CodeServerInvalidConfigurationError
-      || error instanceof Error && "code" in error
+      ||error instanceof CodeServerInvalidConfigurationError
+      ||error instanceof Error && "code"in error
     ) {
       throw error;
     }
     throw new CodeServerLaunchPlanningError("Could not create a code-server integration plan.", {
-      cause: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error ? error.message : String(error),
     });
   }
 }
@@ -51,9 +51,9 @@ async function createCodeServerLaunch(options: CreateCodeServerLaunchPlanOptions
 async function ensureLaunchableIfNeeded(options: CreateCodeServerLaunchPlanOptions): Promise<void> {
   if (options.preparation?.mode === "skip") return;
   await ensureCodeServerLaunchable({
-    attemptRepair: true,
-    resolveFrom: options.resolveFrom,
-    strictWatchdog: options.preparation?.strictWatchdog,
+      attemptRepair: true,
+      resolveFrom: options.resolveFrom,
+      strictWatchdog: options.preparation?.strictWatchdog,
   });
 }
 
@@ -83,8 +83,8 @@ async function buildIntegrationPlan(options: CreateCodeServerLaunchPlanOptions):
 
 async function resolvePlanInstallation(options: CreateCodeServerLaunchPlanOptions): Promise<CodeServerInstallation> {
   return options.installation ?? await resolveCodeServerInstallation({
-    resolveFrom: options.resolveFrom,
-    strictWatchdog: options.preparation?.strictWatchdog,
+      resolveFrom: options.resolveFrom,
+      strictWatchdog: options.preparation?.strictWatchdog,
   });
 }
 

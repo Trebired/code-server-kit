@@ -41,8 +41,8 @@ function createCodeServerBrowserBridge(
 
 function resolveBrowserBridgeContext(options: CodeServerBrowserBridgeOptions) {
   const bridge = options.bridge ?? createSessionDiagnosticsBridge({
-    policy: options.diagnostics?.policy,
-    sanitizer: options.diagnostics?.sanitizer,
+      policy: options.diagnostics?.policy,
+      sanitizer: options.diagnostics?.sanitizer,
   });
   const readonlyPolicy = createReadonlyBrowserPolicy(options.readonly);
   const transport = normalizeTransport(options.diagnostics?.transport);
@@ -60,13 +60,13 @@ function createBaseBrowserIntegration(
     },
     createScript(overrides: Partial<TransformCodeServerHtmlOptions> = {}) {
       return createBrowserDiagnosticsScript({
-        bridgeProperty: options.diagnostics?.bridgeProperty,
-        embed: overrides.embed ?? options.embed,
-        policy: overrides.diagnostics?.policy ?? options.diagnostics?.policy,
-        readonly: overrides.readonly ?? context.readonlyPolicy,
-        sessionKey: overrides.sessionKey ?? options.sessionKey,
-        theme: options.theme,
-        transport: context.transport.getRuntimeConfig(),
+          bridgeProperty: options.diagnostics?.bridgeProperty,
+          embed: overrides.embed ?? options.embed,
+          policy: overrides.diagnostics?.policy ?? options.diagnostics?.policy,
+          readonly: overrides.readonly ??context.readonlyPolicy,
+          sessionKey: overrides.sessionKey ?? options.sessionKey,
+          theme: options.theme,
+          transport: context.transport.getRuntimeConfig(),
       });
     },
     readonlyPolicy: context.readonlyPolicy,
@@ -75,21 +75,21 @@ function createBaseBrowserIntegration(
     },
     transformHtml(overrides) {
       return transformCodeServerHtml({
-        appearance: overrides.appearance ?? options.appearance,
-        bridge: context.bridge,
-        cspNonce: overrides.cspNonce ?? options.html?.cspNonce,
-        diagnostics: {
-          ...options.diagnostics,
-          transport: context.transport,
-        },
-        embed: options.embed,
-        html: overrides.html,
-        injectStrategy: overrides.injectStrategy ?? options.html?.injectStrategy,
-        readonly: context.readonlyPolicy,
-        sessionKey: options.sessionKey,
-        stripEmptyModuleScripts: overrides.stripEmptyModuleScripts ?? options.html?.stripEmptyModuleScripts,
-        stripKnownBrokenModuleScripts: overrides.stripKnownBrokenModuleScripts ?? options.html?.stripKnownBrokenModuleScripts,
-        theme: options.theme,
+          appearance: overrides.appearance ?? options.appearance,
+          bridge: context.bridge,
+          cspNonce: overrides.cspNonce ?? options.html?.cspNonce,
+          diagnostics: {
+            ...options.diagnostics,
+            transport: context.transport,
+          },
+          embed: options.embed,
+          html: overrides.html,
+          injectStrategy: overrides.injectStrategy ?? options.html?.injectStrategy,
+          readonly: context.readonlyPolicy,
+          sessionKey: options.sessionKey,
+          stripEmptyModuleScripts: overrides.stripEmptyModuleScripts ?? options.html?.stripEmptyModuleScripts,
+          stripKnownBrokenModuleScripts: overrides.stripKnownBrokenModuleScripts ?? options.html?.stripKnownBrokenModuleScripts,
+          theme: options.theme,
       });
     },
     transport: context.transport,

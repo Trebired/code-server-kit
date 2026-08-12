@@ -24,7 +24,7 @@ function createIntegrationPlanResult(
     env: NodeJS.ProcessEnv;
     extensionsDir: string;
     installation: import("#3c8d8166992a").CodeServerInstallation;
-    launchMode: Exclude<CodeServerLaunchOptions["launchMode"], "auto" | undefined>;
+    launchMode: Exclude<CodeServerLaunchOptions["launchMode"], "auto"|undefined>;
     readonly: CodeServerReadonlyPolicy;
     trustedOrigins: string[];
     userDataDir: string;
@@ -52,7 +52,7 @@ function createCorePlanResult(
   runtime: ReturnType<typeof buildPlanRuntime>,
   outputs: ReturnType<typeof buildPlanOutputs>,
   staticFields: ReturnType<typeof buildStaticPlanFields>,
-): Omit<CodeServerIntegrationPlan, "sandboxVisiblePaths" | "translatedPaths" | "trustedOrigins" | "userDataDir" | "watchdogMode" | "workspacePath"> {
+): Omit<CodeServerIntegrationPlan, "sandboxVisiblePaths"|"translatedPaths"|"trustedOrigins"|"userDataDir"|"watchdogMode"|"workspacePath"> {
   return {
     args: runtime.args,
     bindAddr: context.binding.bindAddr,
@@ -111,18 +111,18 @@ function buildPlanRuntime(
   context: Parameters<typeof createIntegrationPlanResult>[1],
 ) {
   const command = context.launchMode === "node"
-    ? normalizeNodeCommand(options.nodeCommand)
-    : context.installation.entryPoint;
+  ? normalizeNodeCommand(options.nodeCommand)
+  : context.installation.entryPoint;
   const cliArgs = buildCodeServerArgs({
-    bindAddr: context.binding.bindAddr,
-    extensionsDir: context.extensionsDir,
-    trustedOrigins: context.trustedOrigins,
-    userDataDir: context.userDataDir,
-    workspacePath: context.workspacePath,
+      bindAddr: context.binding.bindAddr,
+      extensionsDir: context.extensionsDir,
+      trustedOrigins: context.trustedOrigins,
+      userDataDir: context.userDataDir,
+      workspacePath: context.workspacePath,
   });
   const args = context.launchMode === "node"
-    ? [context.installation.entryPoint, ...cliArgs]
-    : cliArgs;
+  ? [context.installation.entryPoint, ...cliArgs]
+  : cliArgs;
   return { args, command };
 }
 
@@ -131,40 +131,40 @@ function buildPlanOutputs(
   context: Parameters<typeof createIntegrationPlanResult>[1],
 ) {
   const recommendedReadablePaths = uniquePaths([
-    ...context.installation.recommendedReadablePaths,
-    context.workspacePath,
+      ...context.installation.recommendedReadablePaths,
+      context.workspacePath,
   ]);
   const recommendedWritablePaths = resolveReadonlyWritablePaths({
-    readonly: context.readonly,
-    writablePaths: [context.userDataDir, context.extensionsDir],
+      readonly: context.readonly,
+      writablePaths: [context.userDataDir, context.extensionsDir],
   });
   const bindings = buildRecommendedBindings({
-    extensionsDir: context.extensionsDir,
-    installation: context.installation,
-    recommendedWritablePaths,
-    readonly: context.readonly,
-    userDataDir: context.userDataDir,
-    workspacePath: context.workspacePath,
+      extensionsDir: context.extensionsDir,
+      installation: context.installation,
+      recommendedWritablePaths,
+      readonly: context.readonly,
+      userDataDir: context.userDataDir,
+      workspacePath: context.workspacePath,
   });
   const sandbox = buildSandboxPlan({
-    bindings,
-    dataRoot: options.dataRoot,
-    readonly: context.readonly,
-    stateRoot: options.stateRoot,
-    supportBindings: context.installation.supportBindings,
-    workspacePath: context.workspacePath,
+      bindings,
+      dataRoot: options.dataRoot,
+      readonly: context.readonly,
+      stateRoot: options.stateRoot,
+      supportBindings: context.installation.supportBindings,
+      workspacePath: context.workspacePath,
   });
   const readonlyEnforcement = createReadonlyEnforcement({
-    env: context.env,
-    readonly: context.readonly,
-    writablePaths: recommendedWritablePaths,
+      env: context.env,
+      readonly: context.readonly,
+      writablePaths: recommendedWritablePaths,
   });
   const translatedPaths = uniquePaths([
-    context.installation.packageRoot,
-    context.installation.supportRoot,
-    context.workspacePath,
-    context.userDataDir,
-    context.extensionsDir,
+      context.installation.packageRoot,
+      context.installation.supportRoot,
+      context.workspacePath,
+      context.userDataDir,
+      context.extensionsDir,
   ]).map((value) => ({ hostPath: value, visiblePath: value }));
 
   return { bindings, readonlyEnforcement, recommendedReadablePaths, recommendedWritablePaths, sandbox, translatedPaths };

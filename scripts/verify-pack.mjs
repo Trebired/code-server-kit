@@ -27,14 +27,14 @@ async function main() {
 
 async function resetTempRoot() {
   await fs.rm(tempRoot, {
-    force: true,
-    recursive: true,
+      force: true,
+      recursive: true,
   });
   await fs.mkdir(tempRoot, {
-    recursive: true,
+      recursive: true,
   });
   await fs.mkdir(npmCacheDir, {
-    recursive: true,
+      recursive: true,
   });
 }
 
@@ -43,11 +43,11 @@ function packPackage() {
 
   try {
     execFileSync("sh", [
-      "-lc",
-      `npm pack --json > ${shellEscape(stdoutPath)}`,
-    ], {
-      ...createNpmOptions(rootDir),
-      stdio: ["ignore", "inherit", "inherit"],
+        "-lc",
+        `npm pack --json > ${shellEscape(stdoutPath)}`,
+      ], {
+        ...createNpmOptions(rootDir),
+        stdio: ["ignore", "inherit", "inherit"],
     });
   }
   catch (error) {
@@ -56,8 +56,8 @@ function packPackage() {
   }
 
   const stdout = execFileSync("cat", [stdoutPath], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
   });
   const [entry] = JSON.parse(stdout);
 
@@ -70,8 +70,8 @@ function packPackage() {
 
 function listTarEntries(tarballPath) {
   const stdout = execFileSync("tar", ["-tf", tarballPath], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
   });
 
   return new Set(stdout
@@ -82,8 +82,8 @@ function listTarEntries(tarballPath) {
 
 function readPackedPackageJson(tarballPath) {
   const stdout = execFileSync("tar", ["-xOf", tarballPath, "package/package.json"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
   });
 
   return JSON.parse(stdout);
@@ -163,7 +163,7 @@ async function runConsumerSmokeTest(tarballPath) {
   const consumerDir = path.join(tempRoot, "consumer");
 
   await fs.mkdir(consumerDir, {
-    recursive: true,
+      recursive: true,
   });
 
   await writeConsumerPackageJson(consumerDir, tarballPath);
@@ -176,74 +176,74 @@ async function runConsumerSmokeTest(tarballPath) {
 
 async function writeConsumerPackageJson(consumerDir, tarballPath) {
   await fs.writeFile(path.join(consumerDir, "package.json"), JSON.stringify({
-    name: "code-server-kit-pack-smoke",
-    private: true,
-    type: "module",
-    dependencies: {
-      "@package/code-server-kit": `file:${tarballPath}`,
-      "@package/logger-adapter": `file:${loggerAdapterDir}`,
-    },
-    devDependencies: {
-      "@types/node": `file:${nodeTypesDir}`,
-    },
-  }, null, 2));
+        name: "code-server-kit-pack-smoke",
+        private: true,
+        type: "module",
+        dependencies: {
+          "@package/code-server-kit": `file:${tarballPath}`,
+          "@package/logger-adapter": `file:${loggerAdapterDir}`,
+        },
+        devDependencies: {
+          "@types/node": `file:${nodeTypesDir}`,
+        },
+      }, null, 2));
 }
 
 async function writeConsumerSourceFiles(consumerDir) {
   await fs.writeFile(path.join(consumerDir, "index.ts"), [
-    'import { createCodeServerLaunchPlan, resolveCodeServerInstallation } from "@package/code-server-kit";',
-    "",
-    "const planner = createCodeServerLaunchPlan;",
-    "const resolver = resolveCodeServerInstallation;",
-    "",
-    "console.log(Boolean(planner), Boolean(resolver));",
-  ].join("\n"));
+      'import { createCodeServerLaunchPlan, resolveCodeServerInstallation } from "@package/code-server-kit";',
+      "",
+      "const planner = createCodeServerLaunchPlan;",
+      "const resolver = resolveCodeServerInstallation;",
+      "",
+      "console.log(Boolean(planner), Boolean(resolver));",
+    ].join("\n"));
 
   await fs.writeFile(path.join(consumerDir, "runtime.mjs"), [
-    'import { createCodeServerLaunchPlan, resolveCodeServerInstallation } from "@package/code-server-kit";',
-    "",
-    "console.log(typeof createCodeServerLaunchPlan, typeof resolveCodeServerInstallation);",
-  ].join("\n"));
+      'import { createCodeServerLaunchPlan, resolveCodeServerInstallation } from "@package/code-server-kit";',
+      "",
+      "console.log(typeof createCodeServerLaunchPlan, typeof resolveCodeServerInstallation);",
+    ].join("\n"));
 }
 
 async function writeConsumerTsconfig(consumerDir) {
   await fs.writeFile(path.join(consumerDir, "tsconfig.json"), JSON.stringify({
-    compilerOptions: {
-      lib: [
-        "ES2020",
-      ],
-      module: "ESNext",
-      moduleResolution: "Bundler",
-      noEmit: true,
-      target: "ES2020",
-      types: [
-        "node",
-      ],
-    },
-    include: [
-      "./index.ts",
-    ],
-  }, null, 2));
+        compilerOptions: {
+          lib: [
+            "ES2020",
+          ],
+          module: "ESNext",
+          moduleResolution: "Bundler",
+          noEmit: true,
+          target: "ES2020",
+          types: [
+            "node",
+          ],
+        },
+        include: [
+          "./index.ts",
+        ],
+      }, null, 2));
 }
 
 function runConsumerInstall(consumerDir) {
   execFileSync("npm", ["install", "--ignore-scripts"], {
-    ...createNpmOptions(consumerDir),
-    stdio: "inherit",
+      ...createNpmOptions(consumerDir),
+      stdio: "inherit",
   });
 }
 
 function runConsumerTypecheck(consumerDir) {
   execFileSync(process.execPath, [tscBin, "-p", "tsconfig.json"], {
-    cwd: consumerDir,
-    stdio: "inherit",
+      cwd: consumerDir,
+      stdio: "inherit",
   });
 }
 
 function runConsumerRuntime(consumerDir) {
   execFileSync(process.execPath, ["runtime.mjs"], {
-    cwd: consumerDir,
-    stdio: "inherit",
+      cwd: consumerDir,
+      stdio: "inherit",
   });
 }
 
@@ -259,22 +259,22 @@ function createNpmOptions(cwd) {
 
 function shellEscape(value) {
   return `'${String(value).replace(/'/gu, `'\\''`)}'`;
-}
+  }
 
-function restorePackageJsonFromBackup() {
+  function restorePackageJsonFromBackup() {
   execFileSync(process.execPath, [
-    "-e",
-    [
-      "const fs = require('fs');",
-      `const backup = ${JSON.stringify(packageJsonBackupPath)};`,
-      `const target = ${JSON.stringify(path.join(rootDir, "package.json"))};`,
-      "if (fs.existsSync(backup)) {",
-      "  fs.copyFileSync(backup, target);",
-      "}",
-    ].join(" "),
+  "-e",
+  [
+  "const fs = require('fs');",
+  `const backup = ${JSON.stringify(packageJsonBackupPath)};`,
+  `const target = ${JSON.stringify(path.join(rootDir, "package.json"))};`,
+  "if (fs.existsSync(backup)) {",
+  "  fs.copyFileSync(backup, target);",
+  "}",
+  ].join(" "),
   ], {
-    stdio: "inherit",
+  stdio: "inherit",
   });
-}
+  }
 
-await main();
+  await main();

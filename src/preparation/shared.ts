@@ -1,6 +1,9 @@
-import fs from "node:fs";
 import path from "node:path";
 
+import {
+  isDirectory,
+  isFile,
+} from "#wb3eftm3t8ku";
 import type {
   CodeServerDependencyCheck,
   CodeServerInstallArtifactCheck,
@@ -31,22 +34,22 @@ function buildDependencyChecks(supportRoot: string, strictWatchdog: boolean): Co
 
   return [
     hasNestedNodeModules
-      ? {
-        dependency: "@vscode/ripgrep",
-        details: { path: ripgrepPath },
-        fatal: true,
-        kind: "required",
-        message: "The nested @vscode/ripgrep runtime dependency is missing.",
-        present: isFile(ripgrepPath),
-      }
-      : {
-        dependency: "@vscode/ripgrep",
-        details: { reason: "layout_not_detected" },
-        fatal: false,
-        kind: "required",
-        message: "The current code-server package layout does not expose nested @vscode/ripgrep artifacts for direct validation.",
-        present: true,
-      },
+    ? {
+      dependency: "@vscode/ripgrep",
+      details: { path: ripgrepPath },
+      fatal: true,
+      kind: "required",
+      message: "The nested @vscode/ripgrep runtime dependency is missing.",
+      present: isFile(ripgrepPath),
+    }
+    : {
+      dependency: "@vscode/ripgrep",
+      details: { reason: "layout_not_detected" },
+      fatal: false,
+      kind: "required",
+      message: "The current code-server package layout does not expose nested @vscode/ripgrep artifacts for direct validation.",
+      present: true,
+    },
     {
       dependency: "@vscode/native-watchdog",
       details: {
@@ -56,8 +59,8 @@ function buildDependencyChecks(supportRoot: string, strictWatchdog: boolean): Co
       fatal: strictWatchdog,
       kind: "optional",
       message: strictWatchdog
-        ? "The optional native watchdog dependency is missing and strict watchdog mode is enabled."
-        : "The optional native watchdog dependency is missing. The package will use a disabled watchdog fallback.",
+      ? "The optional native watchdog dependency is missing and strict watchdog mode is enabled."
+      : "The optional native watchdog dependency is missing. The package will use a disabled watchdog fallback.",
       present: isFile(nativeWatchdogPath),
     },
   ];
@@ -109,22 +112,6 @@ function repairHints(status: CodeServerReadinessStatus): string[] {
 function invalidateReadinessCache(packageRoot: string, readinessCache: Map<string, CodeServerReadinessStatus>): void {
   for (const key of readinessCache.keys()) {
     if (key.startsWith(`${packageRoot}:`)) readinessCache.delete(key);
-  }
-}
-
-function isDirectory(value: string): boolean {
-  try {
-    return fs.statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function isFile(value: string): boolean {
-  try {
-    return fs.statSync(value).isFile();
-  } catch {
-    return false;
   }
 }
 

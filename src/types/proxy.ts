@@ -16,7 +16,7 @@ type BuildForwardedHeadersOptions = {
   proto?: string;
 };
 
-type BuildCodeServerWebSocketHeadersOptions = BuildForwardedHeadersOptions & {
+type BuildCodeServerWebSocketHeadersOptions = BuildForwardedHeadersOptions& {
   connection?: string;
   upgrade?: string;
 };
@@ -57,8 +57,8 @@ type CodeServerProxyAdapterOptions = {
   diagnostics?: {
     sanitizer?: CodeServerSanitizerOptions;
   };
-  html?: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "html" | "readonly" | "sessionKey" | "theme">;
-  postResponse?(result: CodeServerProxyResponseResult): void | Promise<void>;
+  html?: Omit<TransformCodeServerHtmlOptions, "bridge"|"diagnostics"|"html"|"readonly"|"sessionKey"|"theme">;
+  postResponse ? (result: CodeServerProxyResponseResult) : void |Promise<void>;
   profile?: CodeServerProfilePolicy;
   profilePersistTrigger?: CodeServerProfilePersistTrigger;
   profileRuntimeDir?: string;
@@ -80,7 +80,7 @@ type CodeServerHtmlResponseOptions = {
   statusCode?: number;
 };
 
-type CodeServerProxyResponseOptions = CodeServerHtmlResponseOptions & {
+type CodeServerProxyResponseOptions = CodeServerHtmlResponseOptions& {
   body?: string | null;
   pathname?: string | null;
 };
@@ -100,7 +100,7 @@ type CodeServerProxyAdapter = {
   classifyResponse(options: CodeServerProxyResponseOptions): CodeServerProxyResponseClassification;
   handleResponse(options: CodeServerProxyResponseOptions): Promise<CodeServerProxyResponseResult>;
   maybeOverrideServiceWorker(pathname?: string | null): CodeServerProxyServiceWorkerOverride | null;
-  persistProfile(runtimeDir?: string): Promise<CodeServerProfilePersistResult | null>;
+  persistProfile(runtimeDir?: string): Promise<CodeServerProfilePersistResult|null>;
   readonlyPolicy: CodeServerReadonlyPolicy;
   responseRequiresTransform(options: CodeServerProxyResponseOptions): boolean;
 };

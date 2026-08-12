@@ -57,16 +57,16 @@ function createCodeServerProxyAdapter(options: CodeServerProxyAdapterOptions = {
 function resolveProxyContext(options: CodeServerProxyAdapterOptions) {
   const browserOptions = isBrowserBridge(options.browser) ? undefined : options.browser;
   const browser = isBrowserBridge(options.browser)
-    ? options.browser
-    : createCodeServerBrowserBridge({
+  ? options.browser
+  : createCodeServerBrowserBridge({
       ...(browserOptions ?? {}),
-      readonly: options.readonly ?? browserOptions?.readonly,
-    });
+      readonly: options.readonly ??browserOptions?.readonly,
+  });
   return {
     browser,
     profile: options.profile ?? null,
     profilePersistTrigger: options.profilePersistTrigger ?? "manual",
-    readonlyPolicy: createReadonlyBrowserPolicy(options.readonly ?? browser.readonlyPolicy),
+    readonlyPolicy: createReadonlyBrowserPolicy(options.readonly ??browser.readonlyPolicy),
     serviceWorker: normalizeServiceWorkerOverride(options.serviceWorker),
   };
 }
@@ -108,11 +108,11 @@ async function resolveProxyResponse(
       body: override?.body ?? null,
       classification,
       headers: override
-        ? {
-          ...override.headers,
-          "content-type": override.contentType,
-        }
-        : {},
+      ? {
+        ...override.headers,
+        "content-type": override.contentType,
+      }
+      : {},
       statusCode: override?.statusCode ?? input.statusCode ?? 200,
     };
   }
@@ -120,8 +120,8 @@ async function resolveProxyResponse(
   if (classification.kind === "transform") {
     const headers = normalizeResponseHeaders(input.headers);
     const body = context.browser.injectHtml({
-      ...options.html,
-      html: input.body ?? "",
+        ...options.html,
+        html: input.body ?? "",
     });
     return {
       body,
@@ -166,9 +166,9 @@ function isBrowserBridge(
   value?: CodeServerBrowserBridge | CodeServerBrowserBridgeOptions,
 ): value is CodeServerBrowserBridge {
   return Boolean(value)
-    && typeof value === "object"
-    && "injectHtml" in value
-    && typeof value.injectHtml === "function";
+  &&typeof value === "object"
+  &&"injectHtml"in value
+  &&typeof value.injectHtml === "function";
 }
 
 export { createCodeServerProxyAdapter };

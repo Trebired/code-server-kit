@@ -24,14 +24,14 @@ function normalizeSelectors(value: string[] | undefined, fallback: string[] | un
 
 function normalizeLevel(value: unknown): CodeServerBrowserDiagnosticEvent["level"] {
   return value === "warn" || value === "error" || value === "info"
-    ? value
-    : "info";
+  ? value
+  : "info";
 }
 
 function normalizeBrowserType(value: unknown): CodeServerBrowserDiagnosticEvent["type"] {
   return typeof value === "string" && KNOWN_BROWSER_TYPES.has(value as CodeServerBrowserDiagnosticEvent["type"])
-    ? value as CodeServerBrowserDiagnosticEvent["type"]
-    : "custom";
+  ? value as CodeServerBrowserDiagnosticEvent["type"]
+  : "custom";
 }
 
 function phaseForBrowserEvent(value: CodeServerBrowserDiagnosticEvent["type"]): CodeServerBrowserDiagnosticEvent["phase"] {
@@ -39,38 +39,38 @@ function phaseForBrowserEvent(value: CodeServerBrowserDiagnosticEvent["type"]): 
     case "websocket-open":
     case "websocket-close":
     case "websocket-error":
-      return "websocket-ready";
+    return "websocket-ready";
     case "workbench-mounted":
     case "bootstrap-timeout":
     case "frontend-stalled":
     case "extension-host-stalled":
-      return "workbench-ready";
+    return "workbench-ready";
     default:
-      return "browser-bootstrap";
+    return "browser-bootstrap";
   }
 }
 
 function isRetryableBrowserEvent(value: CodeServerBrowserDiagnosticEvent["type"]): boolean {
   return value === "websocket-error"
-    || value === "websocket-close"
-    || value === "bootstrap-timeout"
-    || value === "frontend-stalled"
-    || value === "resource-error"
-    || value === "iframe-timeout";
+  ||value === "websocket-close"
+  ||value === "bootstrap-timeout"
+  ||value === "frontend-stalled"
+  ||value === "resource-error"
+  ||value === "iframe-timeout";
 }
 
 function isFailureEvent(event: CodeServerBrowserDiagnosticEvent): boolean {
   return event.type === "bootstrap-timeout"
-    || event.type === "frontend-stalled"
-    || event.type === "extension-host-stalled"
-    || event.type === "iframe-failure"
-    || (event.level === "error" && event.type !== "resource-error");
+  ||event.type === "frontend-stalled"
+  ||event.type === "extension-host-stalled"
+  ||event.type === "iframe-failure"
+  ||(event.level === "error" && event.type !== "resource-error");
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value
-    ? value as Record<string, unknown>
-    : {};
+  ? value as Record<string, unknown>
+  : {};
 }
 
 export function sanitizeText(value: string, sanitizer?: CodeServerSanitizerOptions): string {
@@ -144,13 +144,13 @@ function parseIncomingBrowserEvents(
 
 function normalizeEmbedMessageType(value: unknown): CodeServerEmbedMessageType | null {
   return value === "failure"
-    || value === "ready"
-    || value === "status"
-    || value === "still-loading"
-    || value === "theme"
-    || value === "visibility"
-    ? value
-    : null;
+  ||value === "ready"
+  ||value === "status"
+  ||value === "still-loading"
+  ||value === "theme"
+  ||value === "visibility"
+  ? value
+  : null;
 }
 
 function parseEmbedMessage(
@@ -188,17 +188,17 @@ function extractRelevantUrl(details: Record<string, unknown>): string | null {
 
 function escapeHtmlAttribute(value: string): string {
   return value
-    .split("&").join("&amp;")
-    .split("\"").join("&quot;")
-    .split("<").join("&lt;")
-    .split(">").join("&gt;");
+  .split("&").join("&amp;")
+  .split("\"").join("&quot;")
+  .split("<").join("&lt;")
+  .split(">").join("&gt;");
 }
 
 function escapeHtml(value: string): string {
   return value
-    .split("&").join("&amp;")
-    .split("<").join("&lt;")
-    .split(">").join("&gt;");
+  .split("&").join("&amp;")
+  .split("<").join("&lt;")
+  .split(">").join("&gt;");
 }
 
 export {

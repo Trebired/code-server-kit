@@ -52,15 +52,16 @@ function packageSlug(name: string): string {
 const packageJson = readPackageJson();
 const PACKAGE_JSON_NAME = cleanSegment(packageJson.name);
 const PACKAGE_CONFIG_ORGANIZATION_NAME = cleanSegment(packageJson.config?.organization?.name);
-const PACKAGE_NAME = PACKAGE_JSON_NAME || (PACKAGE_CONFIG_ORGANIZATION_NAME ? `@${PACKAGE_CONFIG_ORGANIZATION_NAME}/code-server-kit` : "code-server-kit");
+const PACKAGE_NAME = PACKAGE_JSON_NAME || (PACKAGE_CONFIG_ORGANIZATION_NAME ? `@${PACKAGE_CONFIG_ORGANIZATION_NAME}/code-server-kit` : "code-server" +
+  "-kit");
 const PACKAGE_ORGANIZATION_NAME = PACKAGE_CONFIG_ORGANIZATION_NAME || packageScope(PACKAGE_JSON_NAME);
 const PACKAGE_SLUG = packageSlug(PACKAGE_NAME) || "code-server-kit";
 
 function buildPackageLogGroup(...parts: string[]): string {
   return [PACKAGE_ORGANIZATION_NAME, PACKAGE_SLUG, ...parts]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(".");
+  .map((part) => part.trim())
+  .filter(Boolean)
+  .join(".");
 }
 
 export {

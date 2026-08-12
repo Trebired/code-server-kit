@@ -11,7 +11,7 @@ import type { CodeServerPreparationStatus } from "./preparation.js";
 type CodeServerSanitizerOptions = {
   pathPrefixes?: string[];
   values?: string[];
-  replacer?(value: string): string;
+  replacer ? (value: string) : string;
 };
 
 type CodeServerSanitizedDiagnostics = {
@@ -47,13 +47,13 @@ type CollectCodeServerStartupDiagnosticsOptions = {
   launchStrategy?: CodeServerLaunchStrategy | null;
   phase?: CodeServerLifecyclePhase;
   preparationStatus?: CodeServerPreparationStatus | null;
-  process?: Pick<CodeServerProcessHandle, "getStderr" | "getStdout"> | null;
+  process?: Pick<CodeServerProcessHandle, "getStderr"|"getStdout">|null;
   retryable?: boolean;
   sanitizer?: CodeServerSanitizerOptions;
   watchdogMode?: CodeServerWatchdogMode;
 };
 
-type NormalizedCodeServerStartupFailure = CodeServerStartupDiagnostics & {
+type NormalizedCodeServerStartupFailure = CodeServerStartupDiagnostics& {
   isCodeServerKitError: boolean;
   name: string;
 };

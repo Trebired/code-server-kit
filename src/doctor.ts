@@ -32,27 +32,27 @@ async function runCodeServerDoctor(options: CodeServerDoctorOptions = {}): Promi
 
 async function runCodeServerSmokeTest(options: CodeServerSmokeTestOptions): Promise<CodeServerSmokeTestResult> {
   const manager = createCodeServerSessionManager({
-    installation: options.installation,
-    logger: options.logger,
-    loggerAdapter: options.loggerAdapter,
-    resolveFrom: options.resolveFrom,
+      installation: options.installation,
+      logger: options.logger,
+      loggerAdapter: options.loggerAdapter,
+      resolveFrom: options.resolveFrom,
   });
   await ensureCodeServerLaunchable({
-    attemptRepair: true,
-    logger: options.logger,
-    loggerAdapter: options.loggerAdapter,
-    resolveFrom: options.resolveFrom,
+      attemptRepair: true,
+      logger: options.logger,
+      loggerAdapter: options.loggerAdapter,
+      resolveFrom: options.resolveFrom,
   });
 
   const started = await manager.start(options);
   if (!options.keepSession) {
     await manager.stop({
-      logger: options.logger,
-      loggerAdapter: options.loggerAdapter,
-      profile: options.profile,
-      sanitizer: options.sanitizer,
-      sessionKey: options.sessionKey,
-      stateRoot: options.stateRoot,
+        logger: options.logger,
+        loggerAdapter: options.loggerAdapter,
+        profile: options.profile,
+        sanitizer: options.sanitizer,
+        sessionKey: options.sessionKey,
+        stateRoot: options.stateRoot,
     });
   }
 

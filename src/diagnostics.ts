@@ -48,7 +48,7 @@ function collectCodeServerStartupDiagnostics(options: CollectCodeServerStartupDi
 }
 
 function sanitizeCodeServerDiagnostics(
-  diagnostics: Pick<CodeServerStartupDiagnostics, "details" | "summary">,
+  diagnostics: Pick<CodeServerStartupDiagnostics, "details"|"summary">,
   options: CodeServerSanitizerOptions,
 ): CodeServerSanitizedDiagnostics {
   const redact = createRedactor(options);
@@ -65,8 +65,8 @@ function normalizeCodeServerStartupFailure(
 ): NormalizedCodeServerStartupFailure {
   const normalized = normalizeError(error);
   const diagnostics = collectCodeServerStartupDiagnostics({
-    ...options,
-    error,
+      ...options,
+      error,
   });
 
   return {
@@ -79,54 +79,54 @@ function normalizeCodeServerStartupFailure(
 function deriveCategory(code: string | null): CodeServerDiagnosticCategory {
   switch (code) {
     case "entrypoint_resolution_failed":
-      return "entrypoint_resolution_failed";
+    return "entrypoint_resolution_failed";
     case "invalid_configuration":
-      return "invalid_configuration";
+    return "invalid_configuration";
     case "preparation_failed":
-      return "preparation_failed";
+    return "preparation_failed";
     case "process_exited_before_ready":
-      return "process_exited_before_ready";
+    return "process_exited_before_ready";
     case "startup_timeout":
-      return "startup_timeout";
+    return "startup_timeout";
     case "systemd_launch_failed":
-      return "systemd_launch_failed";
+    return "systemd_launch_failed";
     case "systemd_status_failed":
     case "systemd_collision":
-      return "systemd_unit_failed";
+    return "systemd_unit_failed";
     case "startup_probe_failed":
-      return "browser_bootstrap_failed";
+    return "browser_bootstrap_failed";
     default:
-      if (code?.includes("watchdog") || code?.includes("dependency")) {
-        return "missing_runtime_dependency";
-      }
-      return "unknown";
+    if (code?.includes("watchdog") || code?.includes("dependency")) {
+      return "missing_runtime_dependency";
+    }
+    return "unknown";
   }
 }
 
 function buildSummary(category: CodeServerDiagnosticCategory, message: string): string {
   switch (category) {
     case "entrypoint_resolution_failed":
-      return `Could not resolve the code-server entrypoint. ${message}`;
+    return `Could not resolve the code-server entrypoint. ${message}`;
     case "invalid_configuration":
-      return `The code-server launch configuration is invalid. ${message}`;
+    return `The code-server launch configuration is invalid. ${message}`;
     case "missing_runtime_dependency":
-      return `A code-server runtime dependency is missing. ${message}`;
+    return `A code-server runtime dependency is missing. ${message}`;
     case "preparation_failed":
-      return `The code-server package could not be prepared. ${message}`;
+    return `The code-server package could not be prepared. ${message}`;
     case "process_exited_before_ready":
-      return `code-server exited before it became ready. ${message}`;
+    return `code-server exited before it became ready. ${message}`;
     case "startup_timeout":
-      return `Timed out waiting for code-server to become ready. ${message}`;
+    return `Timed out waiting for code-server to become ready. ${message}`;
     case "systemd_launch_failed":
-      return `systemd could not launch the code-server unit. ${message}`;
+    return `systemd could not launch the code-server unit. ${message}`;
     case "systemd_unit_failed":
-      return `The code-server systemd unit failed during startup. ${message}`;
+    return `The code-server systemd unit failed during startup. ${message}`;
     case "browser_bootstrap_failed":
-      return `The browser bootstrap phase failed after the server started. ${message}`;
+    return `The browser bootstrap phase failed after the server started. ${message}`;
     case "workbench_ready_failed":
-      return `The workbench never became usable. ${message}`;
+    return `The workbench never became usable. ${message}`;
     default:
-      return message;
+    return message;
   }
 }
 
@@ -134,36 +134,36 @@ function derivePhase(code: string | null): CodeServerStartupDiagnostics["phase"]
   switch (code) {
     case "entrypoint_resolution_failed":
     case "installation_resolution_failed":
-      return "resolve";
+    return "resolve";
     case "invalid_configuration":
-      return "sandbox-plan";
+    return "sandbox-plan";
     case "preparation_failed":
-      return "prepare";
+    return "prepare";
     case "startup_probe_failed":
-      return "browser-bootstrap";
+    return "browser-bootstrap";
     case "startup_timeout":
-      return "http-ready";
+    return "http-ready";
     case "process_exited_before_ready":
     case "systemd_launch_failed":
     case "systemd_status_failed":
     case "systemd_collision":
-      return "launch";
+    return "launch";
     default:
-      return "launch";
+    return "launch";
   }
 }
 
 function defaultHints(category: CodeServerDiagnosticCategory): string[] {
   switch (category) {
     case "missing_runtime_dependency":
-      return ["Repair or reinstall the code-server package before launching another session."];
+    return ["Repair or reinstall the code-server package before launching another session."];
     case "preparation_failed":
-      return ["Run install validation and repair so launch-critical artifacts can be restored."];
+    return ["Run install validation and repair so launch-critical artifacts can be restored."];
     case "browser_bootstrap_failed":
     case "workbench_ready_failed":
-      return ["Inspect the browser diagnostic events for websocket, resource, CSP, worker, or bootstrap failures."];
+    return ["Inspect the browser diagnostic events for websocket, resource, CSP, worker, or bootstrap failures."];
     default:
-      return [];
+    return [];
   }
 }
 
@@ -212,9 +212,9 @@ function normalizeError(error: unknown): {
 
   if (error instanceof Error) {
     return {
-      code: typeof (error as Error & { code?: unknown }).code === "string"
-        ? String((error as Error & { code?: unknown }).code)
-        : null,
+      code: typeof(error as Error& { code?: unknown }).code === "string"
+      ? String((error as Error& { code?: unknown }).code)
+      : null,
       details: {},
       isCodeServerKitError: false,
       message: error.message,
@@ -233,8 +233,8 @@ function normalizeError(error: unknown): {
 
 function trimTail(value: string, limit = 8_192): string {
   return value.length > limit
-    ? value.slice(value.length - limit)
-    : value;
+  ? value.slice(value.length - limit)
+  : value;
 }
 
 export {

@@ -82,7 +82,7 @@ export {
   isCodeServerHtmlResponse,
   normalizeTrustedOrigin,
 } from "./proxy.js";
-export { waitForCodeServerReady } from "./readiness.js";
+export { waitForCodeServerReady } from "./readiness/runtime.js";
 export {
   createReadonlyBrowserPolicy,
   createReadonlySessionPolicy,

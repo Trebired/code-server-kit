@@ -1,19 +1,19 @@
 type CodeServerKitErrorCode =
-  | "entrypoint_resolution_failed"
-  | "installation_resolution_failed"
-  | "invalid_configuration"
-  | "launch_planning_failed"
-  | "port_allocation_failed"
-  | "preparation_failed"
-  | "process_exited_before_ready"
-  | "session_lifecycle_failed"
-  | "session_reuse_conflict"
-  | "startup_probe_failed"
-  | "startup_timeout"
-  | "systemd_collision"
-  | "systemd_journal_failed"
-  | "systemd_launch_failed"
-  | "systemd_status_failed";
+|"entrypoint_resolution_failed"
+|"installation_resolution_failed"
+|"invalid_configuration"
+|"launch_planning_failed"
+|"port_allocation_failed"
+|"preparation_failed"
+|"process_exited_before_ready"
+|"session_lifecycle_failed"
+|"session_reuse_conflict"
+|"startup_probe_failed"
+|"startup_timeout"
+|"systemd_collision"
+|"systemd_journal_failed"
+|"systemd_launch_failed"
+|"systemd_status_failed";
 
 class CodeServerKitError extends Error {
   code: CodeServerKitErrorCode | string;

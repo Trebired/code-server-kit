@@ -90,7 +90,7 @@ function normalizeSystemdUnitName(value: string): string {
 function normalizeSystemdScope(value: CodeServerSystemdScope): CodeServerSystemdScope {
   if (value === "user" || value === "system") return value;
   throw new CodeServerInvalidConfigurationError("systemd launch requires an explicit scope of 'user' or 'system'.", {
-    value,
+      value,
   });
 }
 
@@ -137,15 +137,15 @@ function uniqueStrings(values: string[]): string[] {
 
 async function runSystemCommand(command: string, args: string[]): Promise<string> {
   return await new Promise((resolve, reject) => {
-    execFile(command, args, { encoding: "utf8" }, (error, stdout, stderr) => {
-      if (error) {
-        const wrapped = new Error(stderr.trim() || stdout.trim() || error.message);
-        Object.assign(wrapped, { cause: error });
-        reject(wrapped);
-        return;
-      }
-      resolve(stdout.trim());
-    });
+      execFile(command, args, { encoding: "utf8" }, (error, stdout, stderr) => {
+          if (error) {
+            const wrapped = new Error(stderr.trim() || stdout.trim() || error.message);
+            Object.assign(wrapped, { cause: error });
+            reject(wrapped);
+            return;
+          }
+          resolve(stdout.trim());
+      });
   });
 }
 

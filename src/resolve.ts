@@ -2,12 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { CodeServerBinaryNotFoundError, CodeServerPackageResolutionError } from "./errors.js";
+import {
+  isDirectory,
+  isFile,
+  uniquePaths,
+} from "./files.js";
 import { getCodeServerPreparationStatus, getCodeServerReadinessStatus } from "./preparation.js";
 import { resolveCodeServerPackageJsonPath } from "#t85nzto2yw4q";
 import type { CodeServerEntryKind, CodeServerInstallation, ResolveCodeServerInstallationOptions } from "./types.js";
 
 type CodeServerPackageJson = {
-  bin?: Record<string, unknown> | string;
+  bin?: Record<string, unknown>|string;
   main?: unknown;
   version?: unknown;
 };
@@ -35,18 +40,18 @@ function resolveCodeServerInstallation(
     preparationStatus: statuses.preparationStatus,
     readinessStatus: statuses.readinessStatus,
     recommendedReadablePaths: uniquePaths([
-      resolved.packageRoot,
-      resolved.entryPoint,
-      resolved.supportRoot,
+        resolved.packageRoot,
+        resolved.entryPoint,
+        resolved.supportRoot,
     ]),
     supportBindings: resolved.supportRoot
-      ? [{
+    ? [{
         access: "read",
         hostPath: resolved.supportRoot,
         mountPath: resolved.supportRoot,
         reason: "code-server support root",
-      }]
-      : [],
+    }]
+    : [],
     supportRoot: resolved.supportRoot,
     version: typeof resolved.packageJson.version === "string" ? resolved.packageJson.version : undefined,
   };
@@ -61,10 +66,10 @@ function resolveInstallationPaths(options: ResolveCodeServerInstallationOptions)
 
   if (!isFile(entryPoint)) {
     throw new CodeServerBinaryNotFoundError("Resolved code-server entrypoint was not found.", {
-      entryPoint,
-      entryRelativePath,
-      packageJsonPath,
-      packageRoot,
+        entryPoint,
+        entryRelativePath,
+        packageJsonPath,
+        packageRoot,
     });
   }
 
@@ -82,12 +87,12 @@ function resolveInstallationPaths(options: ResolveCodeServerInstallationOptions)
 function resolveInstallationStatuses(options: ResolveCodeServerInstallationOptions) {
   return {
     preparationStatus: getCodeServerPreparationStatus({
-      resolveFrom: options.resolveFrom,
-      strictWatchdog: options.strictWatchdog,
+        resolveFrom: options.resolveFrom,
+        strictWatchdog: options.strictWatchdog,
     }),
     readinessStatus: getCodeServerReadinessStatus({
-      resolveFrom: options.resolveFrom,
-      strictWatchdog: options.strictWatchdog,
+        resolveFrom: options.resolveFrom,
+        strictWatchdog: options.strictWatchdog,
     }),
   };
 }
@@ -97,8 +102,8 @@ function readCodeServerPackageJson(packageJsonPath: string): CodeServerPackageJs
     return JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as CodeServerPackageJson;
   } catch (error) {
     throw new CodeServerPackageResolutionError("Could not read the resolved code-server package metadata.", {
-      cause: error instanceof Error ? error.message : String(error),
-      packageJsonPath,
+        cause: error instanceof Error ? error.message : String(error),
+        packageJsonPath,
     });
   }
 }
@@ -135,8 +140,8 @@ function detectEntryKind(entryPoint: string): CodeServerEntryKind {
     fs.closeSync(handle);
     const header = buffer.toString("utf8", 0, length);
     return header.startsWith("#!") && header.includes("node")
-      ? "node_script"
-      : "executable";
+    ? "node_script"
+    : "executable";
   } catch {
     return "executable";
   }
@@ -145,36 +150,6 @@ function detectEntryKind(entryPoint: string): CodeServerEntryKind {
 function resolveSupportRoot(packageRoot: string): string | null {
   const supportRoot = path.join(packageRoot, "lib", "vscode");
   return isDirectory(supportRoot) ? supportRoot : null;
-}
-
-function uniquePaths(values: Array<string | null | undefined>): string[] {
-  const normalized: string[] = [];
-
-  for (const value of values) {
-    if (typeof value !== "string") continue;
-    const nextValue = path.resolve(value);
-    if (!normalized.includes(nextValue)) {
-      normalized.push(nextValue);
-    }
-  }
-
-  return normalized;
-}
-
-function isDirectory(value: string): boolean {
-  try {
-    return fs.statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function isFile(value: string): boolean {
-  try {
-    return fs.statSync(value).isFile();
-  } catch {
-    return false;
-  }
 }
 
 export { resolveCodeServerInstallation };

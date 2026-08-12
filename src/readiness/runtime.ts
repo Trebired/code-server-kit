@@ -42,12 +42,12 @@ async function waitForCodeServerReady(options: CodeServerReadyOptions): Promise<
   }
 
   throw new CodeServerStartupTimeoutError(`Timed out waiting for code-server to reach ${context.target} readiness.`, {
-    host: context.host,
-    port: context.port,
-    stderr: options.process?.getStderr(),
-    stdout: options.process?.getStdout(),
-    target: context.target,
-    timeoutMs: context.timeoutMs,
+      host: context.host,
+      port: context.port,
+      stderr: options.process?.getStderr(),
+      stdout: options.process?.getStdout(),
+      target: context.target,
+      timeoutMs: context.timeoutMs,
   });
 }
 
@@ -65,7 +65,7 @@ function createReadinessContext(options: CodeServerReadyOptions) {
   };
   if (options.process) {
     void options.process.exit.then((result) => {
-      context.exitResult = result;
+        context.exitResult = result;
     });
   }
   return context;
@@ -77,21 +77,21 @@ async function assertNoProbeFailure(
   elapsedMs: number,
 ): Promise<void> {
   const probeFailure = await runFailureProbe(options, {
-    elapsedMs,
-    host: context.host,
-    port: context.port,
-    process: options.process,
+      elapsedMs,
+      host: context.host,
+      port: context.port,
+      process: options.process,
   });
   if (!probeFailure) return;
 
   throw new CodeServerStartupProbeError(probeFailure.message, {
-    ...(probeFailure.details ?? {}),
-    elapsedMs,
-    hints: probeFailure.hints,
-    host: context.host,
-    phase: probeFailure.phase ?? "launch",
-    port: context.port,
-    retryable: probeFailure.retryable ?? true,
+      ...(probeFailure.details ?? {}),
+      elapsedMs,
+      hints: probeFailure.hints,
+      host: context.host,
+      phase: probeFailure.phase ?? "launch",
+      port: context.port,
+      retryable: probeFailure.retryable ?? true,
   });
 }
 
@@ -108,7 +108,7 @@ async function waitForTcpConnection(
   }
 
   pushCheckpoint(context.checkpoints, elapsedMs, "launch", "tcp", {
-    bindAddr: options.process?.bindAddr ?? `${context.host}:${context.port}`,
+      bindAddr: options.process?.bindAddr ?? `${context.host}:${context.port}`,
   });
   return true;
 }
@@ -116,7 +116,7 @@ async function waitForTcpConnection(
 async function resolveReadyResult(
   options: CodeServerReadyOptions,
   context: ReturnType<typeof createReadinessContext>,
-): Promise<CodeServerReadyResult | null> {
+): Promise<CodeServerReadyResult|null> {
   if (context.target === "tcp") return buildReadyResult(context);
 
   const httpReady = await waitForHttpStage(options, context);
@@ -145,7 +145,7 @@ async function waitForHttpStage(
 async function waitForBrowserStage(
   options: CodeServerReadyOptions,
   context: ReturnType<typeof createReadinessContext>,
-): Promise<CodeServerReadyResult | null> {
+): Promise<CodeServerReadyResult|null> {
   if (context.target === "websocket" && options.websocketUrl) {
     const remainingMs = context.timeoutMs - (Date.now() - context.startedAt);
     const websocketReady = await probeWebSocketReady(options.websocketUrl, Math.min(remainingMs, context.retryIntervalMs * 4));
@@ -154,14 +154,14 @@ async function waitForBrowserStage(
       return null;
     }
     pushCheckpoint(context.checkpoints, Date.now() - context.startedAt, "websocket-ready", "websocket", {
-      url: options.websocketUrl,
+        url: options.websocketUrl,
     });
     return buildReadyResult(context);
   }
 
   const browserTarget = resolveBrowserTarget(options, context.target);
   const browserReady = await options.browser!.bridge!.waitForTarget(browserTarget, {
-    timeoutMs: options.browser?.timeoutMs ?? (context.timeoutMs - (Date.now() - context.startedAt)),
+      timeoutMs: options.browser?.timeoutMs ?? (context.timeoutMs - (Date.now() - context.startedAt)),
   });
   pushCheckpoint(
     context.checkpoints,
@@ -195,10 +195,10 @@ function resolveBrowserTarget(
     );
   }
   return target === "browser-shell"
-    ? "browser-shell"
-    : target === "workbench"
-      ? "workbench"
-      : "websocket";
+  ? "browser-shell"
+  : target === "workbench"
+  ? "workbench"
+  : "websocket";
 }
 
 function buildReadyResult(context: ReturnType<typeof createReadinessContext>): CodeServerReadyResult {

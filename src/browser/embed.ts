@@ -19,9 +19,9 @@ function createCodeServerEmbedController(
   return {
     createChildTransport() {
       return createBrowserDiagnosticsTransport({
-        messageType: "package:code-server-diagnostics",
-        mode: "postmessage",
-        targetOrigin: controller.state.targetOrigin,
+          messageType: "package:code-server-diagnostics",
+          mode: "postmessage",
+          targetOrigin: controller.state.targetOrigin,
       });
     },
     createStatusMessage(type: CodeServerEmbedMessageType, payload = {}) {
@@ -66,7 +66,7 @@ function createEmbedControllerState(options: CodeServerEmbedControllerOptions) {
     state: {
       lastMessage: null as CodeServerEmbedMessage | null,
       ready: false,
-      state: "idle" as CodeServerEmbedState,
+      state: "idle"as CodeServerEmbedState,
       targetOrigin: options.targetOrigin ?? "*",
       visible: true,
     },
@@ -74,7 +74,7 @@ function createEmbedControllerState(options: CodeServerEmbedControllerOptions) {
       reject(error: Error): void;
       resolve(message: CodeServerEmbedMessage): void;
       timer: ReturnType<typeof setTimeout>;
-    }>(),
+    }> (),
   };
 }
 
@@ -98,9 +98,9 @@ function pushEmbedMessage(
   controller.events.push(message);
   controller.state.lastMessage = message;
   controller.log.info("browser:embed", `Embed ${message.type}`, {
-    channel: message.channel,
-    payload: message.payload,
-    type: message.type,
+      channel: message.channel,
+      payload: message.payload,
+      type: message.type,
   });
 
   if (message.type === "ready") {
@@ -145,9 +145,9 @@ function rejectEmbedWaiters(
     clearTimeout(waiter.timer);
     controller.waiters.delete(waiter);
     waiter.reject(new CodeServerStartupProbeError("Embedded code-server reported a browser-side failure.", {
-      channel: controller.channel,
-      payload: message.payload,
-      phase: "browser-bootstrap",
+          channel: controller.channel,
+          payload: message.payload,
+          phase: "browser-bootstrap",
     }));
   }
 }
@@ -157,18 +157,18 @@ function waitForEmbedReady(
   timeoutMs?: number,
 ): Promise<CodeServerEmbedMessage> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      controller.waiters.delete(waiter);
-      reject(new CodeServerStartupProbeError("Timed out waiting for the embedded code-server frame to report ready.", {
-        channel: controller.channel,
-        loadTimeoutMs: controller.loadTimeoutMs,
-        phase: "browser-bootstrap",
-        targetOrigin: controller.state.targetOrigin,
-      }));
-    }, normalizePositiveInteger(timeoutMs, controller.loadTimeoutMs));
+      const timer = setTimeout(() => {
+          controller.waiters.delete(waiter);
+          reject(new CodeServerStartupProbeError("Timed out waiting for the embedded code-server frame to report ready.", {
+                channel: controller.channel,
+                loadTimeoutMs: controller.loadTimeoutMs,
+                phase: "browser-bootstrap",
+                targetOrigin: controller.state.targetOrigin,
+          }));
+        }, normalizePositiveInteger(timeoutMs, controller.loadTimeoutMs));
 
-    const waiter = { reject, resolve, timer };
-    controller.waiters.add(waiter);
+      const waiter = { reject, resolve, timer };
+      controller.waiters.add(waiter);
   });
 }
 

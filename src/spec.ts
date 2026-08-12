@@ -14,13 +14,13 @@ function createCodeServerLaunchSpec(plan: CodeServerLaunchPlan): CodeServerLaunc
   return buildCodeServerLaunchSpec(plan);
 }
 
-function formatCodeServerCommand(value: Pick<CodeServerLaunchPlan, "args" | "command"> | Pick<CodeServerLaunchSpec, "args" | "command">): string {
+function formatCodeServerCommand(value: Pick<CodeServerLaunchPlan, "args"|"command">|Pick<CodeServerLaunchSpec, "args"|"command">): string {
   return [value.command, ...value.args]
-    .map((part) => shellEscape(part))
-    .join(" ");
+  .map((part) => shellEscape(part))
+  .join(" ");
 }
 
-function buildPathBindings(paths: Array<CodeServerPathBinding | null | undefined>): CodeServerPathBinding[] {
+function buildPathBindings(paths: Array<CodeServerPathBinding|null|undefined>): CodeServerPathBinding[] {
   const bindings: CodeServerPathBinding[] = [];
   const seen = new Set<string>();
 

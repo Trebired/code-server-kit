@@ -20,7 +20,7 @@ type CodeServerBrowserReadinessPolicy = {
   iframeTimeoutMs?: number;
   shellSelectors?: string[];
   stallTimeoutMs?: number;
-  target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench">;
+  target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench">;
   workbenchSelectors: string[];
 };
 
@@ -205,15 +205,15 @@ type CodeServerBrowserIntegration = {
   createScript(options?: Partial<TransformCodeServerHtmlOptions>): string;
   readonlyPolicy: CodeServerReadonlyPolicy;
   summarize(events?: CodeServerBrowserDiagnosticEvent[]): CodeServerBrowserDiagnosticsSummary;
-  transformHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "readonly" | "theme" | "sessionKey"> & {
-    cspNonce?: string;
+  transformHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge"|"diagnostics"|"readonly"|"theme"|"sessionKey">& {
+      cspNonce?: string;
   }): string;
   transport: CodeServerBrowserDiagnosticsTransport;
 };
 
-type CodeServerBrowserBridge = CodeServerBrowserIntegration & {
-  injectHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge" | "diagnostics" | "readonly" | "theme" | "sessionKey"> & {
-    cspNonce?: string;
+type CodeServerBrowserBridge = CodeServerBrowserIntegration& {
+  injectHtml(options: Omit<TransformCodeServerHtmlOptions, "bridge"|"diagnostics"|"readonly"|"theme"|"sessionKey">& {
+      cspNonce?: string;
   }): string;
   parseEvent(event: unknown, sanitizer?: CodeServerSanitizerOptions): CodeServerBrowserDiagnosticEvent;
   parseMessage(data: unknown, sanitizer?: CodeServerSanitizerOptions): CodeServerBrowserDiagnosticEvent[];
@@ -249,7 +249,7 @@ type CodeServerEmbedController = {
   handleMessage(data: unknown): CodeServerEmbedMessage | null;
   recordVisibility(visible: boolean): CodeServerEmbedMessage;
   waitForReady(options?: {
-    timeoutMs?: number;
+      timeoutMs?: number;
   }): Promise<CodeServerEmbedMessage>;
 };
 
@@ -261,12 +261,12 @@ type CodeServerSessionDiagnosticsBridge = {
     readyTargets: CodeServerReadinessTarget[];
   };
   recordEvent(event: unknown): CodeServerBrowserDiagnosticEvent;
-  waitForTarget(target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">, options?: {
-    timeoutMs?: number;
+  waitForTarget(target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">, options?: {
+      timeoutMs?: number;
   }): Promise<{
     elapsedMs: number;
     event: CodeServerBrowserDiagnosticEvent;
-    target: Extract<CodeServerReadinessTarget, "browser-shell" | "workbench" | "websocket">;
+    target: Extract<CodeServerReadinessTarget, "browser-shell"|"workbench"|"websocket">;
   }>;
 };
 

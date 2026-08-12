@@ -22,7 +22,7 @@ type CodeServerPreparationIssue = {
   message: string;
 };
 
-type CodeServerRuntimeDependencyIssue = CodeServerPreparationIssue & {
+type CodeServerRuntimeDependencyIssue = CodeServerPreparationIssue& {
   dependency: string;
   fatal: boolean;
 };
@@ -104,7 +104,7 @@ type CodeServerInstallValidationResult = {
   status: CodeServerReadinessStatus;
 };
 
-type CodeServerRepairOptions = CodeServerPreparationOptions & {
+type CodeServerRepairOptions = CodeServerPreparationOptions& {
   preferPackageManagerCommand?: boolean;
 };
 
@@ -117,7 +117,7 @@ type CodeServerRepairResult = {
   statusBefore: CodeServerReadinessStatus;
 };
 
-type CodeServerEnsureLaunchableOptions = CodeServerRepairOptions & {
+type CodeServerEnsureLaunchableOptions = CodeServerRepairOptions& {
   attemptRepair?: boolean;
 };
 
@@ -199,9 +199,9 @@ type CodeServerReadonlyPolicy = {
 };
 
 type CodeServerReadonlyInput =
-  | boolean
-  | CodeServerReadonlyPolicy
-  | CodeServerReadonlyPolicyOptions;
+|boolean
+|CodeServerReadonlyPolicy
+|CodeServerReadonlyPolicyOptions;
 
 type CodeServerReadonlyFilesystemEnforcement = {
   available: boolean;

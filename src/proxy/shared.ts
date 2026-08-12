@@ -46,14 +46,17 @@ function buildCodeServerWebSocketHeaders(options: BuildCodeServerWebSocketHeader
 }
 
 function classifyCodeServerProxyFailure(options: ClassifyCodeServerProxyFailureOptions): CodeServerProxyFailure {
-  const errorCode = typeof options.error === "object" && options.error && "code" in options.error
-    ? String(options.error.code)
-    : null;
+  const errorCode = typeof options.error === "object" && options.error && "code"in options.error
+  ? String(options.error.code)
+  : null;
   const statusCode = options.statusCode ?? null;
-  if (errorCode === "ECONNREFUSED" || statusCode === 502) return createProxyFailure("refused", errorCode, statusCode, "The code-server upstream refused the connection.");
+  if (errorCode === "ECONNREFUSED" || statusCode === 502) return createProxyFailure("refused", errorCode, statusCode, "The code-server upstream " +
+    "refused the connection.");
   if (errorCode === "ECONNRESET") return createProxyFailure("reset", errorCode, statusCode, "The code-server upstream reset the connection.");
-  if (errorCode === "ETIMEDOUT" || statusCode === 504) return createProxyFailure("timeout", errorCode, statusCode, "The code-server upstream timed out.");
-  if (statusCode && statusCode >= 500) return createProxyFailure("upstream_failure", errorCode, statusCode, "The code-server upstream returned an error.");
+  if (errorCode === "ETIMEDOUT" || statusCode === 504) return createProxyFailure("timeout", errorCode, statusCode, "The code-server upstream timed " +
+    "out.");
+  if (statusCode && statusCode >= 500) return createProxyFailure("upstream_failure", errorCode, statusCode, "The code-server upstream returned an " +
+    "error.");
   return createProxyFailure("unknown", errorCode, statusCode, "The code-server upstream request failed.");
 }
 

@@ -87,7 +87,7 @@ type CodeServerLaunchPlan = {
   workspacePath: string | null;
 };
 
-type CodeServerIntegrationPlan = CodeServerLaunchPlan & {
+type CodeServerIntegrationPlan = CodeServerLaunchPlan& {
   defaultCwd: string;
   defaultEnv: NodeJS.ProcessEnv;
   hostVisiblePaths: string[];
@@ -143,11 +143,11 @@ type CodeServerReadyFailure = {
 };
 
 type CodeServerReadyFailureProbe = (context: {
-  elapsedMs: number;
-  host: string;
-  port: number;
-  process?: CodeServerProcessHandle;
-}) => CodeServerReadyFailure | Error | string | null | undefined | Promise<CodeServerReadyFailure | Error | string | null | undefined>;
+    elapsedMs: number;
+    host: string;
+    port: number;
+    process?: CodeServerProcessHandle;
+}) => CodeServerReadyFailure | Error | string | null | undefined | Promise<CodeServerReadyFailure|Error|string|null|undefined>;
 
 type CodeServerReadyCheckpoint = {
   details: Record<string, unknown>;
@@ -185,8 +185,8 @@ type LaunchCodeServerProcessOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   plan: CodeServerLaunchPlan;
-  stderr?(text: string): void;
-  stdout?(text: string): void;
+  stderr ? (text: string) : void;
+  stdout ? (text: string) : void;
 };
 
 export type {

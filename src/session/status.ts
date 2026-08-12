@@ -16,24 +16,54 @@ import type {
   CodeServerSessionStatus,
   CodeServerSessionStopResult,
 } from "#3c8d8166992a";
-import { canConnect, deriveDeadState, getSessionPaths, handles, isPidAlive, nowIso, readJsonFile, resolveProfilePolicy, terminateHandle, writeDiagnosticsFile, writeSessionRecord } from "./shared.js";
+import {
+  canConnect,
+  deriveDeadState,
+  getSessionPaths,
+  handles,
+  isPidAlive,
+  nowIso,
+  readJsonFile,
+  resolveProfilePolicy,
+  terminateHandle,
+  writeDiagnosticsFile,
+  writeSessionRecord,
+} from "./shared.js";
 
-async function readCodeServerSessionDiagnostics(options: Pick<CodeServerSessionRequest, "sanitizer" | "sessionKey" | "stateRoot">): Promise<CodeServerSessionDiagnostics | null> {
+async function readCodeServerSessionDiagnostics(
+  options: Pick<
+  CodeServerSessionRequest,
+  "sanitizer" | "sessionKey" | "stateRoot"
+  >,
+): Promise<CodeServerSessionDiagnostics|null> {
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
-  const diagnostics = await readJsonFile<CodeServerSessionDiagnostics>(paths.diagnosticsPath);
+  const diagnostics = await readJsonFile<CodeServerSessionDiagnostics>(
+    paths.diagnosticsPath,
+  );
   if (!diagnostics) return null;
 
   if (options.sanitizer && diagnostics.normalizedFailure) {
-    diagnostics.sanitized = sanitizeCodeServerDiagnostics(diagnostics.normalizedFailure, options.sanitizer);
+    diagnostics.sanitized = sanitizeCodeServerDiagnostics(
+      diagnostics.normalizedFailure,
+      options.sanitizer,
+    );
   }
   return diagnostics;
 }
 
 async function stopCodeServerSessionInternal(
-  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "profile" | "sanitizer" | "sessionKey" | "stateRoot"> & {
+  options: Pick<
+  CodeServerSessionRequest,
+  |"logger"
+  |"loggerAdapter"
+  |"profile"
+  |"sanitizer"
+  |"sessionKey"
+  |"stateRoot"
+  >& {
     signal?: NodeJS.Signals | number;
   },
-): Promise<CodeServerSessionStopResult | null> {
+): Promise<CodeServerSessionStopResult|null> {
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
   const record = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
   if (!record) return null;
@@ -47,9 +77,9 @@ async function stopCodeServerSessionInternal(
   );
   const stoppedRecord = {
     ...record,
-    health: "stopped" as const,
+    health: "stopped"as const,
     pid: null,
-    state: "stopped" as const,
+    state: "stopped"as const,
     stoppedAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -67,9 +97,9 @@ async function stopCodeServerSessionInternal(
 
   return {
     diagnostics: await readCodeServerSessionDiagnostics({
-      sanitizer: options.sanitizer,
-      sessionKey: options.sessionKey,
-      stateRoot: options.stateRoot,
+        sanitizer: options.sanitizer,
+        sessionKey: options.sessionKey,
+        stateRoot: options.stateRoot,
     }),
     signal: options.signal,
     status: await probeSessionRecord(stoppedRecord, options.sanitizer),
@@ -78,8 +108,11 @@ async function stopCodeServerSessionInternal(
 }
 
 async function getCodeServerSessionStatusInternal(
-  options: Pick<CodeServerSessionRequest, "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot">,
-): Promise<CodeServerSessionStatus | null> {
+  options: Pick<
+  CodeServerSessionRequest,
+  "logger" | "loggerAdapter" | "sanitizer" | "sessionKey" | "stateRoot"
+  >,
+): Promise<CodeServerSessionStatus|null> {
   const paths = getSessionPaths(options.stateRoot, options.sessionKey);
   const record = await readJsonFile<CodeServerSessionRecord>(paths.recordPath);
   if (!record) return null;
@@ -91,16 +124,18 @@ async function probeSessionRecord(
   sanitizer?: CodeServerSanitizerOptions,
 ): Promise<CodeServerSessionStatus> {
   const diagnostics = await readCodeServerSessionDiagnostics({
-    sanitizer,
-    sessionKey: record.sessionKey,
-    stateRoot: path.dirname(path.dirname(path.dirname(record.userDataDir))),
+      sanitizer,
+      sessionKey: record.sessionKey,
+      stateRoot: path.dirname(path.dirname(path.dirname(record.userDataDir))),
   });
-  const ready = record.launchStrategy === "systemd"
-    ? await probeSystemdReady(record)
-    : await probeDirectReady(record);
-  const sanitizedDiagnostics = sanitizer && diagnostics?.normalizedFailure
-    ? sanitizeCodeServerDiagnostics(diagnostics.normalizedFailure, sanitizer)
-    : record.sanitizedDiagnostics ?? null;
+  const ready =
+  record.launchStrategy === "systemd"
+  ? await probeSystemdReady(record)
+  : await probeDirectReady(record);
+  const sanitizedDiagnostics =
+  sanitizer && diagnostics?.normalizedFailure
+  ? sanitizeCodeServerDiagnostics(diagnostics.normalizedFailure, sanitizer)
+  : (record.sanitizedDiagnostics ?? null);
 
   return {
     bindAddr: record.bindAddr,
@@ -113,7 +148,10 @@ async function probeSessionRecord(
     lastStartSummary: record.lastStartSummary ?? null,
     launchStrategy: record.launchStrategy,
     metadata: record.metadata ?? null,
-    pid: record.launchStrategy === "direct" ? handles.get(record.sessionKey)?.pid ?? record.pid : record.pid,
+    pid:
+    record.launchStrategy === "direct"
+    ? (handles.get(record.sessionKey)?.pid ?? record.pid)
+    : record.pid,
     port: record.port,
     preparation: record.preparation ?? null,
     ready,
@@ -134,17 +172,24 @@ async function probeSessionRecord(
   };
 }
 
-async function probeSystemdReady(record: CodeServerSessionRecord): Promise<boolean> {
+async function probeSystemdReady(
+  record: CodeServerSessionRecord,
+): Promise<boolean> {
   if (!record.systemdScope || !record.unitName) return false;
   try {
-    const status = await readCodeServerSystemdStatus({ scope: record.systemdScope, unitName: record.unitName });
-    return status.reusable && await canConnect(record.bindAddr, record.port);
+    const status = await readCodeServerSystemdStatus({
+        scope: record.systemdScope,
+        unitName: record.unitName,
+    });
+    return status.reusable && (await canConnect(record.bindAddr, record.port));
   } catch {
     return false;
   }
 }
 
-async function probeDirectReady(record: CodeServerSessionRecord): Promise<boolean> {
+async function probeDirectReady(
+  record: CodeServerSessionRecord,
+): Promise<boolean> {
   const pid = handles.get(record.sessionKey)?.pid ?? record.pid;
   if (!pid || !isPidAlive(pid)) return false;
   return await canConnect(record.bindAddr, record.port);
@@ -157,8 +202,17 @@ async function stopExistingRuntime(
   logger?: CodeServerSessionRequest["logger"],
   loggerAdapter?: CodeServerSessionRequest["loggerAdapter"],
 ): Promise<void> {
-  if (record.launchStrategy === "systemd" && record.systemdScope && record.unitName) {
-    await stopCodeServerSystemdUnit({ logger, loggerAdapter, scope: record.systemdScope, unitName: record.unitName });
+  if (
+    record.launchStrategy === "systemd" &&
+      record.systemdScope &&
+      record.unitName
+  ) {
+    await stopCodeServerSystemdUnit({
+        logger,
+        loggerAdapter,
+        scope: record.systemdScope,
+        unitName: record.unitName,
+    });
   } else {
     const handle = handles.get(record.sessionKey);
     if (handle) {

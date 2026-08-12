@@ -11,9 +11,9 @@ import type {
 } from "#3c8d8166992a";
 
 function createReadonlyEnforcement(options: {
-  env: NodeJS.ProcessEnv;
-  readonly: CodeServerReadonlyPolicy;
-  writablePaths: string[];
+    env: NodeJS.ProcessEnv;
+    readonly: CodeServerReadonlyPolicy;
+    writablePaths: string[];
 }): CodeServerReadonlyEnforcement {
   if (!options.readonly.enabled) {
     return {
@@ -79,14 +79,14 @@ function createReadonlyBrowserEnforcement(readonly: CodeServerReadonlyPolicy) {
     blocksPaste: readonly.browserGuards.blockPaste,
     blocksUpload: readonly.browserGuards.blockUpload,
     blocksWritableSessionPromotions: readonlyPolicyBlocksWritableSessionPromotions(readonly),
-    defaultActionSource: "unknown" as const,
+    defaultActionSource: "unknown"as const,
   };
 }
 
 function createDirectReadonlyFilesystemEnforcement(options: {
-  env: NodeJS.ProcessEnv;
-  readonly: CodeServerReadonlyPolicy;
-  writablePaths: string[];
+    env: NodeJS.ProcessEnv;
+    readonly: CodeServerReadonlyPolicy;
+    writablePaths: string[];
 }): CodeServerReadonlyFilesystemEnforcement {
   if (options.readonly.filesystem.mode === "off") {
     return disabledReadonlyFilesystemEnforcement("none", options.readonly.filesystem.mode, options.writablePaths);
@@ -208,12 +208,12 @@ function disabledReadonlyFilesystemEnforcement(
 }
 
 function resolveReadonlyWritablePaths(options: {
-  readonly: CodeServerReadonlyPolicy;
-  writablePaths: string[];
+    readonly: CodeServerReadonlyPolicy;
+    writablePaths: string[];
 }): string[] {
   return uniquePaths([
-    ...options.writablePaths,
-    ...options.readonly.filesystem.extraWritablePaths,
+      ...options.writablePaths,
+      ...options.readonly.filesystem.extraWritablePaths,
   ]);
 }
 
@@ -266,7 +266,7 @@ function isExecutable(candidate: string): boolean {
   }
 }
 
-function uniquePaths(values: Array<string | null | undefined>): string[] {
+function uniquePaths(values: Array<string|null|undefined>): string[] {
   const normalized: string[] = [];
   for (const value of values) {
     if (typeof value !== "string" || !value.trim()) continue;

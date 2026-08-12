@@ -1,9 +1,13 @@
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
 
 import { CodeServerInvalidConfigurationError } from "#8974ac53d713";
 import { CodeServerProcessHandle } from "#3c8d8166992a";
+import {
+  canConnectToHost,
+  formatReadyHost,
+  sleep,
+} from "#1hrgy979pns4";
 
 function getSessionPaths(stateRoot: string, sessionKey: string) {
   const normalizedStateRoot = path.resolve(stateRoot);
@@ -36,20 +40,7 @@ function isPidAlive(pid: number): boolean {
 
 async function canConnect(bindAddr: string, port: number): Promise<boolean> {
   const host = extractHost(bindAddr);
-  return await new Promise((resolve) => {
-    const socket = net.connect({ host, port });
-    let settled = false;
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(value);
-    };
-    socket.setTimeout(250);
-    socket.once("connect", () => finish(true));
-    socket.once("error", () => finish(false));
-    socket.once("timeout", () => finish(false));
-  });
+  return await canConnectToHost(host, port, 250);
 }
 
 function extractHost(bindAddr: string): string {
@@ -60,16 +51,12 @@ function extractHost(bindAddr: string): string {
   return bindAddr.slice(0, bindAddr.lastIndexOf(":"));
 }
 
-function formatReadyHost(host: string): string {
-  return host.includes(":") ? `[${host}]` : host;
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T | null> {
+async function readJsonFile<T>(filePath: string): Promise<T|null> {
   try {
     const contents = await fs.promises.readFile(filePath, "utf8");
     return JSON.parse(contents) as T;
   } catch (error) {
-    if (typeof error === "object" && error && "code" in error && String(error.code) === "ENOENT") return null;
+    if (typeof error === "object" && error && "code"in error && String(error.code) === "ENOENT") return null;
     throw error;
   }
 }
@@ -84,10 +71,6 @@ async function terminateHandle(handle: CodeServerProcessHandle, signal: NodeJS.S
     await Promise.race([handle.exit, sleep(1_000)]);
   } catch {
   }
-}
-
-function sleep(durationMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
 }
 
 function nowIso(): string {

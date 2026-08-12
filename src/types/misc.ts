@@ -1,6 +1,16 @@
-import type { CodeServerPathBinding, CodeServerReadinessStatus, CodeServerRepairResult, CodeServerEnsureLaunchableOptions, CodeServerInstallValidationResult } from "./preparation.js";
+import type {
+  CodeServerPathBinding,
+  CodeServerReadinessStatus,
+  CodeServerRepairResult,
+  CodeServerEnsureLaunchableOptions,
+  CodeServerInstallValidationResult,
+} from "./preparation.js";
 import type { CodeServerReadyResult } from "./launch.js";
-import type { CodeServerSessionDiagnostics, CodeServerSessionRequest, CodeServerSessionStartResult } from "./session.js";
+import type {
+  CodeServerSessionDiagnostics,
+  CodeServerSessionRequest,
+  CodeServerSessionStartResult,
+} from "./session.js";
 
 type CodeServerDoctorOptions = CodeServerEnsureLaunchableOptions;
 
@@ -10,7 +20,7 @@ type CodeServerDoctorResult = {
   validation: CodeServerInstallValidationResult;
 };
 
-type CodeServerSmokeTestOptions = CodeServerSessionRequest & {
+type CodeServerSmokeTestOptions = CodeServerSessionRequest& {
   keepSession?: boolean;
 };
 

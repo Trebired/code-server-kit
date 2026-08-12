@@ -84,17 +84,17 @@ function isTransport(
   value?: CodeServerBrowserDiagnosticsTransport | CodeServerBrowserDiagnosticsTransportOptions,
 ): value is CodeServerBrowserDiagnosticsTransport {
   return Boolean(value)
-    && typeof value === "object"
-    && typeof (value as CodeServerBrowserDiagnosticsTransport).deliver === "function"
-    && typeof (value as CodeServerBrowserDiagnosticsTransport).parseMessage === "function";
+  &&typeof value === "object"
+  &&typeof(value as CodeServerBrowserDiagnosticsTransport).deliver === "function"
+  &&typeof(value as CodeServerBrowserDiagnosticsTransport).parseMessage === "function";
 }
 
 function normalizeTransport(
   transport?: CodeServerBrowserDiagnosticsTransport | CodeServerBrowserDiagnosticsTransportOptions,
 ): CodeServerBrowserDiagnosticsTransport {
   return isTransport(transport)
-    ? transport
-    : createBrowserDiagnosticsTransport(transport);
+  ? transport
+  : createBrowserDiagnosticsTransport(transport);
 }
 
 function resolveGlobalArray(name = DEFAULT_TRANSPORT_RUNTIME.arrayName): unknown[] {
@@ -112,23 +112,23 @@ function resolveGlobalArray(name = DEFAULT_TRANSPORT_RUNTIME.arrayName): unknown
 function resolveGlobalFunction(name = DEFAULT_TRANSPORT_RUNTIME.callbackName): ((...args: unknown[]) => unknown) | null {
   const value = (globalThis as Record<string, unknown>)[name];
   return typeof value === "function"
-    ? value as (...args: unknown[]) => unknown
-    : null;
+  ? value as(...args: unknown[]) => unknown
+  : null;
 }
 
 function resolveBrowserWindow(): {
   parent?: {
-    postMessage?(message: unknown, targetOrigin: string): void;
+    postMessage ? (message: unknown, targetOrigin: string) : void;
   };
 } | null {
-  if (typeof globalThis !== "object" || !("window" in globalThis)) {
+  if (typeof globalThis !== "object" || !("window"in globalThis)) {
     return null;
   }
 
   const candidate = (globalThis as Record<string, unknown>).window;
   return candidate && typeof candidate === "object"
-    ? candidate as { parent?: { postMessage?(message: unknown, targetOrigin: string): void } }
-    : null;
+  ? candidate as { parent?: { postMessage ? (message: unknown, targetOrigin: string) : void } }
+  : null;
 }
 
 async function postBrowserDiagnostics(
@@ -140,8 +140,8 @@ async function postBrowserDiagnostics(
   }
 
   const payload = JSON.stringify({
-    events,
-    type: runtime.messageType,
+      events,
+      type: runtime.messageType,
   });
   const headers = {
     "content-type": "application/json",
@@ -153,10 +153,10 @@ async function postBrowserDiagnostics(
     attempts += 1;
     try {
       const response = await fetch(runtime.endpointUrl, {
-        body: payload,
-        headers,
-        keepalive: runtime.keepalive,
-        method: "POST",
+          body: payload,
+          headers,
+          keepalive: runtime.keepalive,
+          method: "POST",
       });
 
       if (response.ok || attempts > runtime.retryCount) {

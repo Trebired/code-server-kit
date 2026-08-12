@@ -7,11 +7,11 @@ function createHtmlInjectionPlan(options: CreateHtmlInjectionPlanOptions) {
   const nonce = options.nonce?.trim();
   const marker = "data-package-code-server-kit=\"browser-bridge\"";
   const snippet = nonce
-    ? `<script ${marker} nonce="${escapeHtmlAttribute(nonce)}">${script}</script>`
-    : `<script ${marker}>${script}</script>`;
+  ? `<script ${marker} nonce="${escapeHtmlAttribute(nonce)}">${script}</script>`
+  : `<script ${marker}>${script}</script>`;
   const markers = strategy === "append-body"
-    ? [marker, "</body>", "</html>"]
-    : [marker, "<head>", "<html>"];
+  ? [marker, "</body>", "</html>"]
+  : [marker, "<head>", "<html>"];
 
   return {
     apply(html: string): string {

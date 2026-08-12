@@ -1,9 +1,12 @@
-import net from "node:net";
-
 import {
   CodeServerInvalidConfigurationError,
   CodeServerProcessExitedBeforeReadyError,
 } from "#8974ac53d713";
+import {
+  canConnectToHost,
+  formatReadyHost as formatHost,
+  sleep,
+} from "#1hrgy979pns4";
 import type {
   CodeServerProcessExit,
   CodeServerReadinessTarget,
@@ -18,22 +21,7 @@ const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const CONNECT_ATTEMPT_TIMEOUT_MS = 400;
 
 async function canConnect(host: string, port: number, timeoutMs: number): Promise<boolean> {
-  return await new Promise((resolve) => {
-    const socket = net.connect({ host, port });
-    let settled = false;
-
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(value);
-    };
-
-    socket.setTimeout(Math.max(timeoutMs, 1));
-    socket.once("connect", () => finish(true));
-    socket.once("error", () => finish(false));
-    socket.once("timeout", () => finish(false));
-  });
+  return await canConnectToHost(host, port, timeoutMs);
 }
 
 async function probeHttpReady(url: string, headers?: Record<string, string>): Promise<boolean> {
@@ -41,9 +29,9 @@ async function probeHttpReady(url: string, headers?: Record<string, string>): Pr
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1_000);
     const response = await fetch(url, {
-      headers,
-      redirect: "manual",
-      signal: controller.signal,
+        headers,
+        redirect: "manual",
+        signal: controller.signal,
     });
     clearTimeout(timer);
     return response.status >= 200 && response.status < 500;
@@ -54,27 +42,27 @@ async function probeHttpReady(url: string, headers?: Record<string, string>): Pr
 
 async function probeWebSocketReady(url: string, timeoutMs: number): Promise<boolean> {
   return await new Promise((resolve) => {
-    let settled = false;
-    const timer = setTimeout(() => finish(false), Math.max(timeoutMs, 250));
+      let settled = false;
+      const timer = setTimeout(() => finish(false), Math.max(timeoutMs, 250));
 
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(value);
-    };
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
 
-    try {
-      const socket = new WebSocket(url);
-      socket.addEventListener("open", () => {
-        socket.close();
-        finish(true);
-      });
-      socket.addEventListener("error", () => finish(false));
-      socket.addEventListener("close", () => finish(false));
-    } catch {
-      finish(false);
-    }
+      try {
+        const socket = new WebSocket(url);
+        socket.addEventListener("open", () => {
+            socket.close();
+            finish(true);
+        });
+        socket.addEventListener("error", () => finish(false));
+        socket.addEventListener("close", () => finish(false));
+      } catch {
+        finish(false);
+      }
   });
 }
 
@@ -86,7 +74,7 @@ async function runFailureProbe(
     port: number;
     process?: CodeServerReadyOptions["process"];
   },
-): Promise<CodeServerReadyFailure | null> {
+): Promise<CodeServerReadyFailure|null> {
   if (!options.failureProbe) return null;
   const result = await options.failureProbe(context);
   if (!result) return null;
@@ -109,13 +97,13 @@ function createExitedBeforeReadyError(
   process?: CodeServerReadyOptions["process"],
 ) {
   return new CodeServerProcessExitedBeforeReadyError("code-server exited before reaching the requested readiness target.", {
-    code: exitResult.code,
-    host,
-    phase: "launch",
-    port,
-    signal: exitResult.signal,
-    stderr: process?.getStderr(),
-    stdout: process?.getStdout(),
+      code: exitResult.code,
+      host,
+      phase: "launch",
+      port,
+      signal: exitResult.signal,
+      stderr: process?.getStderr(),
+      stdout: process?.getStdout(),
   });
 }
 
@@ -152,14 +140,6 @@ function normalizePositiveDuration(value: number | undefined, fallback: number):
     throw new CodeServerInvalidConfigurationError("Readiness durations must be greater than zero.", { value });
   }
   return Math.floor(value);
-}
-
-function formatHost(host: string): string {
-  return host.includes(":") ? `[${host}]` : host;
-}
-
-function sleep(durationMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
 }
 
 export {

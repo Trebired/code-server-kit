@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
+import { hashJsonValue } from "./hash.js";
 import type {
   CodeServerProfileItem,
   CodeServerProfilePathMap,
@@ -61,24 +62,24 @@ async function syncCodeServerProfile(options: SyncCodeServerProfileOptions): Pro
     try {
       await fs.promises.mkdir(path.dirname(entry.targetPath), { recursive: true });
       await fs.promises.cp(entry.sourcePath, entry.targetPath, {
-        force: true,
-        recursive: entry.kind === "directory",
+          force: true,
+          recursive: entry.kind === "directory",
       });
       copied.push(entry);
       changed = true;
     } catch (error) {
       if (isMissingError(error) && skipMissing) {
         skipped.push({
-          entry,
-          reason: "missing_source",
+            entry,
+            reason: "missing_source",
         });
         continue;
       }
 
       if (isUnreadableError(error) && skipUnreadable) {
         skipped.push({
-          entry,
-          reason: "unreadable_source",
+            entry,
+            reason: "unreadable_source",
         });
         continue;
       }
@@ -103,25 +104,25 @@ async function readCodeServerProfileSnapshot(options: ReadCodeServerProfileSnaps
   for (const item of items) {
     const targetPath = path.join(rootDir, pathMap[item]);
     entries.push({
-      item,
-      present: exists(targetPath),
-      signature: await readEntrySignature(targetPath),
+        item,
+        present: exists(targetPath),
+        signature: await readEntrySignature(targetPath),
     });
   }
 
   if (options.snapshotExtensions && !entries.some((value) => value.item === "extensions")) {
     const targetPath = path.join(rootDir, pathMap.extensions);
     entries.push({
-      item: "extensions",
-      present: exists(targetPath),
-      signature: await readEntrySignature(targetPath),
+        item: "extensions",
+        present: exists(targetPath),
+        signature: await readEntrySignature(targetPath),
     });
   }
 
   return {
     entries,
     rootDir,
-    signature: hashJson(entries),
+    signature: hashJsonValue(entries),
   };
 }
 
@@ -134,16 +135,16 @@ async function persistCodeServerProfileIfChanged(
   options: PersistCodeServerProfileIfChangedOptions,
 ): Promise<PersistCodeServerProfileIfChangedResult> {
   const previousSignature = await safeReadSignature({
-    items: options.items,
-    pathMap: options.pathMap,
-    rootDir: options.targetDir,
-    snapshotExtensions: options.snapshotExtensions,
+      items: options.items,
+      pathMap: options.pathMap,
+      rootDir: options.targetDir,
+      snapshotExtensions: options.snapshotExtensions,
   });
   const nextSignature = await readCodeServerProfileSignature({
-    items: options.items,
-    pathMap: options.pathMap,
-    rootDir: options.sourceDir,
-    snapshotExtensions: options.snapshotExtensions,
+      items: options.items,
+      pathMap: options.pathMap,
+      rootDir: options.sourceDir,
+      snapshotExtensions: options.snapshotExtensions,
   });
 
   if (previousSignature && previousSignature === nextSignature) {
@@ -194,8 +195,8 @@ function createProfileSyncEntry(
   relativePath: string,
 ): CodeServerProfileSyncEntry {
   const kind = item === "snippets" || item === "extensions" || item === "globalStorage"
-    ? "directory"
-    : "file";
+  ? "directory"
+  : "file";
 
   return {
     item,
@@ -206,14 +207,14 @@ function createProfileSyncEntry(
   };
 }
 
-async function readEntrySignature(targetPath: string): Promise<string | null> {
+async function readEntrySignature(targetPath: string): Promise<string|null> {
   if (!exists(targetPath)) return null;
 
   const stats = await fs.promises.stat(targetPath);
   if (stats.isFile()) {
     return createHash("sha256")
-      .update(await fs.promises.readFile(targetPath))
-      .digest("hex");
+    .update(await fs.promises.readFile(targetPath))
+    .digest("hex");
   }
 
   if (!stats.isDirectory()) {
@@ -249,18 +250,12 @@ async function listFiles(rootDir: string): Promise<string[]> {
   return values.sort();
 }
 
-async function safeReadSignature(options: ReadCodeServerProfileSignatureOptions): Promise<string | null> {
+async function safeReadSignature(options: ReadCodeServerProfileSignatureOptions): Promise<string|null> {
   try {
     return await readCodeServerProfileSignature(options);
   } catch {
     return null;
   }
-}
-
-function hashJson(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(value))
-    .digest("hex");
 }
 
 function exists(value: string): boolean {
@@ -273,11 +268,11 @@ function exists(value: string): boolean {
 }
 
 function isMissingError(error: unknown): boolean {
-  return typeof error === "object" && error != null && "code" in error && String(error.code) === "ENOENT";
+  return typeof error === "object" && error != null && "code"in error && String(error.code) === "ENOENT";
 }
 
 function isUnreadableError(error: unknown): boolean {
-  if (typeof error !== "object" || error == null || !("code" in error)) return false;
+  if (typeof error !== "object" || error == null || !("code"in error)) return false;
   const code = String(error.code);
   return code === "EACCES" || code === "EPERM";
 }

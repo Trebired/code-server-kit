@@ -42,7 +42,7 @@ type CodeServerProfileSyncResult = {
   }>;
 };
 
-type SyncCodeServerProfileOptions = CreateCodeServerProfileSyncPlanOptions & {
+type SyncCodeServerProfileOptions = CreateCodeServerProfileSyncPlanOptions& {
   skipMissing?: boolean;
   skipUnreadable?: boolean;
 };
@@ -68,12 +68,12 @@ type ReadCodeServerProfileSnapshotOptions = {
 
 type ReadCodeServerProfileSignatureOptions = ReadCodeServerProfileSnapshotOptions;
 
-type PersistCodeServerProfileIfChangedOptions = SyncCodeServerProfileOptions & {
+type PersistCodeServerProfileIfChangedOptions = SyncCodeServerProfileOptions& {
   signatureMode?: CodeServerProfileSignatureMode;
   snapshotExtensions?: boolean;
 };
 
-type PersistCodeServerProfileIfChangedResult = CodeServerProfileSyncResult & {
+type PersistCodeServerProfileIfChangedResult = CodeServerProfileSyncResult& {
   nextSignature: string;
   previousSignature: string | null;
 };
@@ -94,7 +94,7 @@ type CodeServerProfileLifecycleOptions = {
   snapshotExtensions?: boolean;
 };
 
-type CodeServerProfilePolicyOptions = CodeServerProfileLifecycleOptions & {
+type CodeServerProfilePolicyOptions = CodeServerProfileLifecycleOptions& {
   readonly?: CodeServerReadonlyInput;
 };
 
@@ -107,7 +107,7 @@ type CodeServerProfileRestoreResult = {
   sync: CodeServerProfileSyncResult | null;
 };
 
-type CodeServerProfilePersistResult = PersistCodeServerProfileIfChangedResult & {
+type CodeServerProfilePersistResult = PersistCodeServerProfileIfChangedResult& {
   persisted: boolean;
   runtimeDir: string;
 };
@@ -138,7 +138,7 @@ type CodeServerProfilePolicy = {
   prepareRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePrepareResult>;
   readRuntimeSnapshot(runtimeDir: string): Promise<CodeServerProfileSnapshot>;
   restoreRuntimeProfile(runtimeDir: string): Promise<CodeServerProfileRestoreResult>;
-  schedulePersistRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePersistResult | null>;
+  schedulePersistRuntimeProfile(runtimeDir: string): Promise<CodeServerProfilePersistResult|null>;
 };
 
 export type {

@@ -30,9 +30,9 @@ function spawnPlanProcess(options: LaunchCodeServerProcessOptions, env: NodeJS.P
   const stderrChunks: string[] = [];
   const resolvedLaunch = buildDirectReadonlyLaunch(options.plan, env);
   const child = spawn(resolvedLaunch.command, resolvedLaunch.args, {
-    cwd: options.cwd ?? options.plan.cwd,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
+      cwd: options.cwd ?? options.plan.cwd,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
   });
 
   bindProcessOutput(child, stdoutChunks, stderrChunks, options);
@@ -51,32 +51,32 @@ function bindProcessOutput(
   options: LaunchCodeServerProcessOptions,
 ): void {
   child.stdout?.on("data", (chunk) => {
-    const text = String(chunk);
-    stdoutChunks.push(text);
-    options.stdout?.(text);
+      const text = String(chunk);
+      stdoutChunks.push(text);
+      options.stdout?.(text);
   });
   child.stderr?.on("data", (chunk) => {
-    const text = String(chunk);
-    stderrChunks.push(text);
-    options.stderr?.(text);
+      const text = String(chunk);
+      stderrChunks.push(text);
+      options.stderr?.(text);
   });
 }
 
 function createProcessExitPromise(child: ReturnType<typeof spawn>): Promise<CodeServerProcessExit> {
   return new Promise((resolve) => {
-    child.once("close", (code, signal) => {
-      resolve({
-        code,
-        signal: typeof signal === "string" ? signal as NodeJS.Signals : null,
+      child.once("close", (code, signal) => {
+          resolve({
+              code,
+              signal: typeof signal === "string" ? signal as NodeJS.Signals : null,
+          });
       });
-    });
   });
 }
 
 async function waitForSpawn(child: ReturnType<typeof spawn>, plan: CodeServerLaunchPlan): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    child.once("spawn", () => resolve());
-    child.once("error", (error) => reject(wrapSpawnError(error, plan)));
+      child.once("spawn", () => resolve());
+      child.once("error", (error) => reject(wrapSpawnError(error, plan)));
   });
 }
 
@@ -117,14 +117,14 @@ function createProcessHandle(
 }
 
 function wrapSpawnError(error: unknown, plan: CodeServerLaunchPlan): Error {
-  const errorCode = typeof error === "object" && error && "code" in error
-    ? String(error.code)
-    : null;
+  const errorCode = typeof error === "object" && error && "code"in error
+  ? String(error.code)
+  : null;
 
   if (errorCode === "ENOENT") {
     return new CodeServerBinaryNotFoundError("Could not launch the resolved code-server command.", {
-      args: plan.args,
-      command: plan.command,
+        args: plan.args,
+        command: plan.command,
     });
   }
 
