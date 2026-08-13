@@ -1,6 +1,6 @@
 {
   "name": "@trebired/code-server-kit",
-  "version": "1.4.16",
+  "version": "1.4.17",
   "description": "Framework-agnostic code-server integration layer for Bun hosts with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "type": "module",
   "private": false,
