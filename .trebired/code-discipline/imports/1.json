@@ -65,6 +65,7 @@
   "#p18hxzvey9jc": "./src/proxy/runtime.ts",
   "#pokhd7q93q7m": "./src/plan/runtime.ts",
   "#q3g7gd9hd4rw": "./src/session/manager_helpers.ts",
+  "#qfg5n6negecv": "./.trebired/logger/config.ts",
   "#rd2k1ce75dlz": "./src/preparation/readiness.ts",
   "#rvn8bpeqze86": "./src/preparation/shared.ts",
   "#rvw6v2m0cxb3": "./src/readonly/launch.ts",
