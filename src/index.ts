@@ -20,6 +20,17 @@ export {
   isCodeServerKitError,
 } from "./errors.js";
 export {
+  CODE_SERVER_KIT_PROJECT_CONFIG_PATH,
+  defineConfig,
+  findConfig,
+  findConfigSync,
+  loadCachedConfigSync,
+  loadConfig,
+  loadConfigSync,
+  mergeBrowserOptions,
+  normalizeConfig,
+} from "./config/index.js";
+export {
   browserReadinessPolicy,
   classifyCodeServerBrowserFailure,
   createBrowserDiagnosticsScript,
@@ -286,4 +297,10 @@ export type {
   CodeServerThemeSyncOptions,
   TransformCodeServerHtmlOptions,
 } from "./types.js";
+export type {
+  CodeServerKitConfig,
+  LoadCodeServerKitConfigOptions,
+  LoadedCodeServerKitConfig,
+  NormalizedCodeServerKitConfig,
+} from "./config/index.js";
 export type { CodeServerKitErrorCode } from "./errors.js";

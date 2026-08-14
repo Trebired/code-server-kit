@@ -5,6 +5,7 @@ import { parseBrowserDiagnosticEvent } from "./shared.js";
 import { createBrowserDiagnosticsScript } from "./script.js";
 import { normalizeTransport } from "./transport.js";
 import { transformCodeServerHtml } from "./html.js";
+import { loadCachedConfigSync, mergeBrowserOptions } from "#wmgd7f6gipfb";
 import type {
   CodeServerBrowserBridge,
   CodeServerBrowserBridgeOptions,
@@ -22,8 +23,9 @@ function createCodeServerBrowserIntegration(
 function createCodeServerBrowserBridge(
   options: CodeServerBrowserBridgeOptions = {},
 ): CodeServerBrowserBridge {
-  const context = resolveBrowserBridgeContext(options);
-  const base = createBaseBrowserIntegration(options, context);
+  const resolvedOptions = mergeBrowserOptions(loadCachedConfigSync().browser, options);
+  const context = resolveBrowserBridgeContext(resolvedOptions);
+  const base = createBaseBrowserIntegration(resolvedOptions, context);
 
   return {
     ...base,

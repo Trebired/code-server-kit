@@ -4,9 +4,15 @@ All notable changes to `@trebired/code-server-kit` will be documented here.
 
 This project follows semantic versioning once published.
 
+## 1.5.0
+
+- Updated the shared Trebired config dependency to `@trebired/configs@^0.1.2`.
+- Added public `.trebired/code-server-kit/config.ts` support through `@trebired/code-server-kit/config`.
+- Browser integration creation now merges configured appearance, diagnostics, embed, HTML, readonly, and theme defaults before explicit caller options.
+
 ## 1.4.15
 
-- Adopted the external `@trebired/code-discipline-config` preset and updated Code Discipline tooling to `@trebired/code-discipline@^6.0.9`.
+- Adopted the external `@trebired/configs` preset and updated Code Discipline tooling to `@trebired/code-discipline@^6.0.9`.
 
 ## 1.4.14
 
