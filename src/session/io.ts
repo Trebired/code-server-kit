@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { nowIso } from "@trebired/utils";
+
 import { CodeServerInvalidConfigurationError } from "#8974ac53d713";
 import { CodeServerProcessHandle } from "#3c8d8166992a";
 import {
@@ -71,10 +73,6 @@ async function terminateHandle(handle: CodeServerProcessHandle, signal: NodeJS.S
     await Promise.race([handle.exit, sleep(1_000)]);
   } catch {
   }
-}
-
-function nowIso(): string {
-  return new Date().toISOString();
 }
 
 export {

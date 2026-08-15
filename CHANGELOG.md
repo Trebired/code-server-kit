@@ -4,6 +4,11 @@ All notable changes to `@trebired/code-server-kit` will be documented here.
 
 This project follows semantic versioning once published.
 
+## 1.5.2
+
+- Updated shared utilities to `@trebired/utils@^0.4.3`.
+- Replaced local config normalization, value, time, and package metadata helpers with shared utilities.
+
 ## 1.5.0
 
 - Updated the shared Trebired config dependency to `@trebired/configs@^0.1.2`.

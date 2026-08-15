@@ -2,10 +2,12 @@ import type { CodeServerBrowserIntegrationOptions } from "#3c8d8166992a";
 
 type CodeServerKitConfig = {
   browser?: CodeServerBrowserIntegrationOptions;
+  forVersion?: string;
 };
 
 type NormalizedCodeServerKitConfig = {
   browser: CodeServerBrowserIntegrationOptions;
+  forVersion: string;
 };
 
 type LoadedCodeServerKitConfig = {

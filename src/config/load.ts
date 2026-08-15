@@ -3,6 +3,7 @@ import fsPromises from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { PACKAGE_VERSION } from "#ztxam4p5ur4e";
 import type {
   CodeServerKitConfig,
   LoadCodeServerKitConfigOptions,
@@ -12,7 +13,10 @@ import type {
 import { defineConfig, normalizeConfig } from "./normalize.js";
 
 const CODE_SERVER_KIT_PROJECT_CONFIG_PATH = ".trebired/code-server-kit/config.ts";
-const EMPTY_CONFIG = Object.freeze(normalizeConfig({}));
+const EMPTY_CONFIG = Object.freeze(normalizeConfig(
+    { forVersion: PACKAGE_VERSION },
+    { requireForVersion: false },
+));
 
 let cachedConfigs = new Map<string, LoadedCodeServerKitConfig>();
 
@@ -104,7 +108,7 @@ function missingConfig(): LoadedCodeServerKitConfig {
 
 function loadedConfig(configPath: string, config: CodeServerKitConfig): LoadedCodeServerKitConfig {
   return {
-    config: normalizeConfig(config),
+    config: normalizeConfig(config, { configPath, requireForVersion: true }),
     configPath,
     dependencies: [configPath],
   };
