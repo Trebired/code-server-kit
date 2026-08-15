@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.3
+
+- Updated shared utilities to `@trebired/utils@^0.4.4`.
+
 All notable changes to `@trebired/code-server-kit` will be documented here.
 
 This project follows semantic versioning once published.
