@@ -5,13 +5,10 @@
       "displayName": "Trebired",
       "name": "trebired",
       "website": "https://trebired.com"
-    },
-    "creator": {
-      "name": "Miroslav Machynka"
     }
   },
   "name": "@trebired/code-server-kit",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "description": "Framework-agnostic code-server integration layer for Bun hosts with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "type": "module",
   "private": false,
@@ -51,7 +48,7 @@
   "dependencies": {
     "@package/logger-adapter": "npm:@trebired/logger-adapter@^0.4.6",
     "@package/result": "npm:@trebired/result@^1.1.6",
-    "@trebired/utils": "^0.4.5",
+    "@trebired/utils": "^0.6.0",
     "code-server": "^4.117.0"
   },
   "devDependencies": {
