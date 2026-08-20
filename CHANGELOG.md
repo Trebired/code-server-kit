@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.8
+
+- Updated the result dependency range to the current package release so consumers do not retain older nested logger-adapter installs.
+
 ## 1.5.7
 
 - Updated the logger-adapter dependency so repeated package initialization calls are de-duplicated by package source.
