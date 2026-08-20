@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.7
+
+- Updated the logger-adapter dependency so repeated package initialization calls are de-duplicated by package source.
+
 ## 1.5.6
 
 - Removed dead `config.creator` from `package.json`.
