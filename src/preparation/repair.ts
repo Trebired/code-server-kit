@@ -10,6 +10,7 @@ import { resolveLogger } from "#5a29135e56c1";
 import {
   invalidateReadinessCache,
   isFile,
+  ripgrepPackageCandidates,
   repairHints,
 } from "./shared.js";
 import { getCodeServerReadinessStatus } from "./readiness.js";
@@ -77,33 +78,26 @@ async function collectRepairActions(statusBefore: CodeServerReadinessStatus): Pr
     }));
   }
 
-  const ripgrepPackageJsonPath = path.join(
-    statusBefore.supportRoot ?? statusBefore.packageRoot,
-    "node_modules",
-    "@vscode",
-    "ripgrep",
-    "package.json",
-  );
-  if (shouldRepairRipgrep(statusBefore, ripgrepPackageJsonPath)) {
+  const ripgrepPackage = resolveRepairableRipgrepPackage(statusBefore);
+  if (ripgrepPackage) {
     actions.push(await runRepairAction({
           command: "npm",
-          args: ["rebuild", "@vscode/ripgrep", "--foreground-scripts"],
-          cwd: path.dirname(path.dirname(path.dirname(ripgrepPackageJsonPath))),
+          args: ["rebuild", ripgrepPackage.packageName, "--foreground-scripts"],
+          cwd: path.dirname(path.dirname(path.dirname(ripgrepPackage.packageJsonPath))),
           details: {
-            dependency: "@vscode/ripgrep",
+            dependency: ripgrepPackage.packageName,
             kind: "dependency-postinstall",
           },
-          label: "repair nested @vscode/ripgrep runtime dependency",
+          label: "repair nested ripgrep runtime dependency",
     }));
   }
   return actions;
 }
 
-function shouldRepairRipgrep(statusBefore: CodeServerReadinessStatus, ripgrepPackageJsonPath: string): boolean {
-  return isFile(ripgrepPackageJsonPath)
-  &&statusBefore.dependencies.some((dependency) => {
-      return dependency.dependency === "@vscode/ripgrep" && !dependency.present;
-  });
+function resolveRepairableRipgrepPackage(statusBefore: CodeServerReadinessStatus) {
+  if (!statusBefore.dependencies.some((dependency) => dependency.dependency.startsWith("@vscode/ripgrep") && !dependency.present)) return null;
+  const supportRoot = statusBefore.supportRoot ?? statusBefore.packageRoot;
+  return ripgrepPackageCandidates(supportRoot).find((candidate) => isFile(candidate.packageJsonPath)) ?? null;
 }
 
 function resolveRepairOutcome(

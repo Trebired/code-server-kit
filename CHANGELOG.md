@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.9
+
+- Added package-owned default `@trebired/logger` output for code-server preparation and repair logs when callers do not provide a logger.
+- Updated readiness and repair checks to accept the current `@vscode/ripgrep-universal` dependency layout in embedded code-server installs.
+- Updated logger dependencies to the current package releases.
+
 ## 1.5.8
 
 - Updated the result dependency range to the current package release so consumers do not retain older nested logger-adapter installs.

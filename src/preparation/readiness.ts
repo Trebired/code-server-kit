@@ -84,10 +84,15 @@ function resolveReadinessState(
   dependencies: CodeServerReadinessStatus["dependencies"],
 ): CodeServerReadinessStatus["state"] {
   if (launchable) return "launchable";
-  if (postinstallScriptPath || dependencies.some((dependency) => dependency.dependency === "@vscode/ripgrep" && dependency.present === false)) {
+  const hasMissingRipgrepDependency = dependencies.some(isMissingRipgrepDependency);
+  if (postinstallScriptPath || hasMissingRipgrepDependency) {
     return "repairable";
   }
   return "unrecoverable";
+}
+
+function isMissingRipgrepDependency(dependency: CodeServerReadinessStatus["dependencies"][number]): boolean {
+  return dependency.dependency.startsWith("@vscode/ripgrep") && dependency.present === false;
 }
 
 export {

@@ -12,6 +12,12 @@ import type {
   CodeServerRuntimeDependencyIssue,
 } from "#3c8d8166992a";
 
+type RipgrepPackageCandidate = {
+  binaryPath: string;
+  packageJsonPath: string;
+  packageName: string;
+};
+
 function buildArtifactChecks(packageRoot: string, supportRoot: string): CodeServerInstallArtifactCheck[] {
   return [
     artifact("file", "code-server package manifest", path.join(packageRoot, "package.json"), true),
@@ -29,18 +35,21 @@ function buildArtifactChecks(packageRoot: string, supportRoot: string): CodeServ
 
 function buildDependencyChecks(supportRoot: string, strictWatchdog: boolean): CodeServerDependencyCheck[] {
   const hasNestedNodeModules = isDirectory(path.join(supportRoot, "node_modules"));
-  const ripgrepPath = path.join(supportRoot, "node_modules", "@vscode", "ripgrep", "bin", "rg");
+  const ripgrep = resolveRipgrepRuntime(supportRoot);
   const nativeWatchdogPath = path.join(supportRoot, "node_modules", "@vscode", "native-watchdog", "package.json");
 
   return [
     hasNestedNodeModules
     ? {
-      dependency: "@vscode/ripgrep",
-      details: { path: ripgrepPath },
+      dependency: ripgrep.packageName,
+      details: {
+        candidatePaths: ripgrep.candidates.map((candidate) => candidate.binaryPath),
+        path: ripgrep.binaryPath,
+      },
       fatal: true,
       kind: "required",
-      message: "The nested @vscode/ripgrep runtime dependency is missing.",
-      present: isFile(ripgrepPath),
+      message: "The nested ripgrep runtime dependency is missing.",
+      present: ripgrep.present,
     }
     : {
       dependency: "@vscode/ripgrep",
@@ -64,6 +73,48 @@ function buildDependencyChecks(supportRoot: string, strictWatchdog: boolean): Co
       present: isFile(nativeWatchdogPath),
     },
   ];
+}
+
+function resolveRipgrepRuntime(supportRoot: string): {
+  binaryPath: string;
+  candidates: RipgrepPackageCandidate[];
+  packageName: string;
+  present: boolean;
+} {
+  const candidates = ripgrepPackageCandidates(supportRoot);
+  const presentCandidate = candidates.find((candidate) => isFile(candidate.binaryPath));
+  const primaryCandidate = presentCandidate ?? candidates[0];
+  return {
+    binaryPath: primaryCandidate.binaryPath,
+    candidates,
+    packageName: primaryCandidate.packageName,
+    present: Boolean(presentCandidate),
+  };
+}
+
+function ripgrepPackageCandidates(supportRoot: string): RipgrepPackageCandidate[] {
+  const legacyRoot = path.join(supportRoot, "node_modules", "@vscode", "ripgrep");
+  const universalRoot = path.join(supportRoot, "node_modules", "@vscode", "ripgrep-universal");
+  const universalPlatform = ripgrepUniversalPlatformFolder();
+  const ripgrepBinary = process.platform === "win32" ? "rg.exe" : "rg";
+  return [
+    {
+      binaryPath: path.join(legacyRoot, "bin", ripgrepBinary),
+      packageJsonPath: path.join(legacyRoot, "package.json"),
+      packageName: "@vscode/ripgrep",
+    },
+    {
+      binaryPath: path.join(universalRoot, "bin", universalPlatform, ripgrepBinary),
+      packageJsonPath: path.join(universalRoot, "package.json"),
+      packageName: "@vscode/ripgrep-universal",
+    },
+  ];
+}
+
+function ripgrepUniversalPlatformFolder(): string {
+  if (process.platform === "darwin") return `darwin-${process.arch}`;
+  if (process.platform === "win32") return `win32-${process.arch}`;
+  return `linux-${process.arch}`;
 }
 
 function artifact(
@@ -102,8 +153,8 @@ function repairHints(status: CodeServerReadinessStatus): string[] {
   if (status.missingCriticalArtifacts.some((artifactPath) => artifactPath.includes("workbench.web.main"))) {
     hints.add("Reinstall code-server if embedded workbench assets are missing.");
   }
-  if (status.dependencies.some((dependency) => dependency.dependency === "@vscode/ripgrep" && !dependency.present)) {
-    hints.add("Repair the nested @vscode/ripgrep dependency or reinstall the package tree.");
+  if (status.dependencies.some((dependency) => dependency.dependency.startsWith("@vscode/ripgrep") && !dependency.present)) {
+    hints.add("Repair the nested ripgrep dependency or reinstall the package tree.");
   }
   if (hints.size === 0) hints.add("Reinstall the code-server package and re-run validation.");
   return [...hints];
@@ -122,6 +173,7 @@ export {
   isDirectory,
   isFile,
   issue,
+  ripgrepPackageCandidates,
   repairHints,
   toWatchdogIssue,
 };
