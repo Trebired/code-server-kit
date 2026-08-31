@@ -8,7 +8,7 @@
     }
   },
   "name": "@trebired/code-server-kit",
-  "version": "1.5.9",
+  "version": "1.5.10",
   "description": "Framework-agnostic code-server integration layer for Bun hosts with preparation, launch planning, lifecycle control, diagnostics, and Linux-first systemd support.",
   "type": "module",
   "private": false,
@@ -49,7 +49,7 @@
     "@package/logger": "npm:@trebired/logger@^2.5.32",
     "@package/logger-adapter": "npm:@trebired/logger-adapter@^0.4.18",
     "@package/result": "npm:@trebired/result@^1.2.7",
-    "@trebired/utils": "^0.6.0",
+    "@trebired/utils": "^0.8.0",
     "code-server": "^4.117.0"
   },
   "devDependencies": {

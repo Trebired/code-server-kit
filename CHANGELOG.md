@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.10
+
+### Changed
+
+- Moved the `@trebired/utils` dependency range from `^0.6.0` to `^0.8.0`, matching the rest of
+  the `@trebired` packages. For 0.x versions those two ranges are disjoint (`>=0.6.0 <0.7.0` vs
+  `>=0.8.0 <0.9.0`), so any project combining this package with one already on `^0.8.0`
+  (`@trebired/frontend`, `@trebired/uploads`, `@trebired/env`, `@trebired/security`) resolved two
+  copies of `@trebired/utils` — a hoisted 0.6.x alongside a nested 0.8.x — duplicating code and
+  letting app-level imports of `@trebired/utils` silently resolve to a different copy than this
+  package used internally. Nothing this package uses changed across those releases; the only
+  breaking change in 0.8.0 was the env module moving to `@trebired/env`, which this package does
+  not import.
+
 ## 1.5.9
 
 - Added package-owned default `@trebired/logger` output for code-server preparation and repair logs when callers do not provide a logger.
