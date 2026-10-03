@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "category": "package",
+  "subcategory": "tooling",
+  "status": "active",
+  "npm": "@trebired/code-server-kit",
+  "description": {
+    "en": "Browser-based code editing, prepared and launched from a Bun host.",
+    "cs": "Editace kódu v prohlížeči, připravená a spouštěná z Bun hostitele."
+  }
+}
