@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3
+
+- Raised the dependency ranges to the current releases: `@trebired/logger` to `^3.0.3`, `@trebired/logger-adapter` to `^0.8.2`, `@trebired/result` to `^1.4.1`, `@trebired/utils` to `^0.9.7`.
+- Moved the repository's own Code Discipline config to `@trebired/code-discipline` 8 and the named preset `@trebired/configs/code-discipline/preset_01` from `@trebired/configs` 0.6.0.
+
 ## 1.6.2
 
 - Moved to `@trebired/logger` 3.0.0, which stores saved logs in SQLite and runs on Bun on the server. The `@package/logger` range is now `^3.0.0`.
